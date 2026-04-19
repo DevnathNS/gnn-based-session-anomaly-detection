@@ -12,7 +12,6 @@ A Zero Trust based session management system that continuously evaluates user tr
 * Node.js (v18.0 and above)
 * Python (v3.10 and above)
 * Docker 
- 
 
 ## Setup
 
@@ -35,7 +34,7 @@ npm run dev
 
 5. Start trust-engine
 
-## Serive Ports
+## Service Ports
 | Service | Port | Status |
 |---------|------|--------|
 | Backend API | 3000 | Created |
