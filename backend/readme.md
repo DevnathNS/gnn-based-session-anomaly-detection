@@ -22,7 +22,7 @@ curl http://localhost:3000/api/admin/users
 | POST | /api/user/profile | Update profile
 | GET | /api/user/settings | User settings
 | GET | /api/admin/users | View users
-| POST | /api/admin/users/:id/delete | Deelere users
+| POST | /api/admin/users/:id/delete | Delete users
 | POST | /api/payments/transfer | Payment transfer
 | GET | /api/data/export | Export payments
 
