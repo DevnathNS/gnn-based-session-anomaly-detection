@@ -1,6 +1,6 @@
-#Adaptive Session Trust Enforcement with Graph-Based Behavioral Analysis
+# Adaptive Session Trust Enforcement with Graph-Based Behavioral Analysis
 
-##Problem
+## Problem
 Web applications validate identity only at login, leaving sessions vulnerable to hijacking, privilege escalation, and insider threats. Traditional systems cannot detect anomalous behavior after authentication.
 
 ## Solution
@@ -12,30 +12,24 @@ A Zero Trust based session management system that continuously evaluates user tr
 * Node.js (v18.0 and above)
 * Python (v3.10 and above)
 * Docker 
-
-## Project Structure
-├── docker-compose.yml
-├── README.md
-├── backend/          
-├── frontend/         
-└── trust-engine/ 
+ 
 
 ## Setup
 
 1. Clone the repository and enter the project
-\`\`\` bash
+``` bash
 git clone https://github.com/DevnathNS/gnn-based-session-anomaly-detection.git
 cd gnn-based-session-anomaly-detection
-\`\`\`
+```
 
 2. Start databases
 
 3. Start backend
-\`\`\` bash
+``` bash
 cd backend
 npm install
 npm run dev
-\`\`\`
+```
 
 4. Start frontend
 
