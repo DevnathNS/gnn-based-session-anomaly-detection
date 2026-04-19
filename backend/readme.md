@@ -1,5 +1,18 @@
 # Backend 
 
+## Setup
+```bash
+npm install
+npm run dev
+```
+
+## Testing endpoints
+```bash
+curl http://localhost:3000/api/public/news
+curl http://localhost:3000/api/user/profile
+curl http://localhost:3000/api/admin/users
+```
+
 ## API Endpoints
 | Method | Endpoint | Description |
 |--------|----------|-------------|
