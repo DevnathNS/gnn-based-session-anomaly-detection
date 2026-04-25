@@ -1,4 +1,7 @@
 import {Router, Request, Response} from 'express';
+import { redisClient } from '../db/redis';
+import { db } from '../db/postgres';
+
 const router = Router();
 
 /**
@@ -129,6 +132,19 @@ const router = Router();
  *       200:
  *         description: Export job queued
  */
+ 
+/**
+ * @swagger
+ * /api/session/stats:
+ *    get:
+ *       summary: Get current session stats and trust score history
+ *       tags: [Session]
+ *       security:
+ *          - bearerAuth: []
+ *       responses:
+ *          200:
+ *             description: Session statistics
+*/
 
 router.get('/public/news', (req: Request, res:Response) => {
 	res.json({
@@ -213,6 +229,43 @@ router.get('/data/export', (req: Request, res:Response) => {
 		data: {exportId:'exp_zta001',status:'queued',format:'csv'},
 		timestamp: new Date().toISOString()			
 	});
+});
+
+router.get('/session/stats', async (req: Request, res:Response) => {
+	try {
+		const sessionId = (req as any).user?.sessionId;
+		const currentScore = await redisClient.get(`session:{sessionId}:trust_score`);
+		
+		const recentResult = await db.query (
+		    `SELECT endpoint, method, trust_score, allowed, timestamp
+		    FROM request_logs
+		    WHERE session_id=$1
+		    ORDER BY timestamp DESC
+		    LIMIT 20`,
+		    [sessionId]
+		);
+		
+		const historyResult = await db.query (
+		    `SELECT trust_score, timestamp
+		    FROM request_logs
+		    WHERE session_id=$1
+		    ORDER BY timestamp DESC
+		    LIMIT 50`,
+		    [sessionId]
+		);
+		
+		res.json({
+			endpoint: '/api/session/stats',
+			data: {currentScore: currentScore ? parseInt(currentScore) : 90, 
+			       recentRequests: recentResult.rows,
+			       scoreHistory: historyResult.rows.reverse()
+			},
+			timestamp: new Date().toISOString()			
+		});
+	} catch (err) {
+		console.error('Stats error: ',err);
+		res.status(500).json({error: 'Failed to fetch session stats'});
+	}
 });
 
 export default router;

@@ -21,7 +21,10 @@ git clone https://github.com/DevnathNS/gnn-based-session-anomaly-detection.git
 cd gnn-based-session-anomaly-detection
 ```
 
-2. Start databases
+2. Set up the environment
+``` bash
+docker-compose up -d
+```
 
 3. Start backend
 ``` bash

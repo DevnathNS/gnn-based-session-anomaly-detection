@@ -7,6 +7,7 @@ import { authMiddleware } from './middleware/auth';
 import { sessionTrackerMiddleware, getSessionHistory, updateTrustScore } from './middleware/sessionTracker';
 import { policyEnforcerMiddleware, getPolicies } from './middleware/policyEnforcer';
 import { initializeDatabase } from './db/postgres';
+import { logger } from './middleware/logger';
 
 const app = express();
 const PORT = 3000;
@@ -45,6 +46,7 @@ app.use(
   authMiddleware,
   sessionTrackerMiddleware,
   policyEnforcerMiddleware,
+  logger,
   apiRouter
 );
 
