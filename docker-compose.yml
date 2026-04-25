@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # Redis - In-memory cache for sessions and real-time data
+  redis:
+    image: redis:7-alpine
+    container_name: trust_system_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    environment:
+      - REDIS_APPENDONLY=yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - trust_network
+
+  # PostgreSQL - Persistent database for users, sessions, logs
+  postgres:
+    image: postgres:15-alpine
+    container_name: trust_system_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: trust_system
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - trust_network
+
+  # pgAdmin - Web UI for PostgreSQL (optional, for development)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: trust_system_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - trust_network
+
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+
+networks:
+  trust_network:
+    driver: bridge

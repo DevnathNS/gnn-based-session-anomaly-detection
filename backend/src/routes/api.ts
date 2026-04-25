@@ -160,7 +160,7 @@ router.get('/user/profile', (req: Request, res:Response) => {
 });
 
 
-router.get('/user/profile', (req: Request, res:Response) => {
+router.post('/user/profile', (req: Request, res:Response) => {
 	res.json({
 		endpoint: '/api/user/profile',
 		data: {updated: true, fields: req.body},
@@ -193,7 +193,7 @@ router.get('/admin/users', (req: Request, res:Response) => {
 
 router.post('/admin/users/:id/delete', (req: Request, res:Response) => {
 	res.json({
-		endpoint: '/api/admin/users/${req.params.id}/delete',
+		endpoint: `/api/admin/users/${req.params.id}/delete`,
 		data: {delete:true, userId: req.params.id},
 		timestamp: new Date().toISOString()			
 	});
