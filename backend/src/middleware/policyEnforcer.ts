@@ -71,6 +71,8 @@ function getAccessTier(score: number): 'full' | 'limited' | 'restricted' | 'bloc
  *
  * Checks if user's trust score meets endpoint requirements
  * Blocks, allows, or requests step-up authentication
+ * 
+ * Skips public endpoints that don't require policy checks
  *
  * Usage:
  *   app.use('/api/*', authMiddleware, sessionTrackerMiddleware, policyEnforcerMiddleware);
@@ -81,6 +83,11 @@ export async function policyEnforcerMiddleware(
   next: NextFunction
 ) {
   try {
+    // Skip policy enforcement for public endpoints
+    if (req.path.startsWith('/public/')) {
+      return next();
+    }
+
     // 1. Get sessionId
     const sessionId = req.sessionId;
     if (!sessionId) {
@@ -96,7 +103,10 @@ export async function policyEnforcerMiddleware(
     const currentScore = scoreStr ? parseInt(scoreStr) : 0;
 
     // 3. Get required score for this endpoint
-    const endpoint = req.path;
+    // The policy patterns are defined with /api/... but the routes are mounted with it. 
+    // Wait, the router is mounted in server.ts as app.use('/api', ...).
+    // Let's check req.originalUrl instead of req.path to match /api/...
+    const endpoint = req.originalUrl.split('?')[0]; // use original url and remove query string
     const requiredScore = getRequiredScore(endpoint);
 
     // 4. Determine access tier

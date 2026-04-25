@@ -22,6 +22,8 @@ interface SessionRequest {
  * - Rate limiting counter (requests per minute)
  * - Last endpoint visited (for graph edges)
  * - Initialize default trust score if new session
+ * 
+ * Skips public endpoints that don't require session tracking
  *
  * Usage:
  *   app.use('/api/*', authMiddleware, sessionTrackerMiddleware);
@@ -32,6 +34,11 @@ export async function sessionTrackerMiddleware(
   next: NextFunction
 ) {
   try {
+    // Skip session tracking for public endpoints
+    if (req.path.startsWith('/public/')) {
+      return next();
+    }
+
     // 1. Get sessionId (set by auth middleware)
     const sessionId = req.sessionId;
     if (!sessionId) {

@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { db, User } from '../db/postgres';
 import { redisClient } from '../db/redis';
-import { createJWT } from '../middleware/auth';
+import { createJWT, authMiddleware } from '../middleware/auth';
 import { terminateSession } from '../middleware/sessionTracker';
 
 const router = Router();
@@ -204,7 +204,7 @@ router.post('/login', async (req: Request, res: Response) => {
  *   message: "Logged out successfully"
  * }
  */
-router.post('/logout', async (req: Request, res: Response) => {
+router.post('/logout', authMiddleware, async (req: Request, res: Response) => {
   try {
     const sessionId = (req as any).sessionId;
 
@@ -254,7 +254,7 @@ router.post('/logout', async (req: Request, res: Response) => {
  *   createdAt: "2024-01-15T10:30:00Z"
  * }
  */
-router.get('/me', async (req: Request, res: Response) => {
+router.get('/me', authMiddleware, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.userId;
 

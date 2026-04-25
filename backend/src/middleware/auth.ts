@@ -28,11 +28,18 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
  * Extracts userId and sessionId
  * Attaches to req.user
  * 
+ * Skips public endpoints that don't require authentication
+ * 
  * Usage:
  *   app.use('/api/*', authMiddleware);
  */
-export function authMiddleware(req: Request, res: Response, next: NextFunction) {
+export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
   try {
+    // Skip authentication for public endpoints
+    if (req.path.startsWith('/public/')) {
+      return next();
+    }
+
     // 1. Get token from Authorization header
     // Expected format: "Bearer eyJhbGciOiJIUzI1NiIs..."
     const authHeader = req.headers.authorization;
@@ -57,6 +64,19 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 
     // 3. Verify and decode token
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+
+    // Check if session was terminated in Redis
+    if (decoded.sessionId) {
+      const { redisClient } = await import('../db/redis');
+      const scoreKey = `session:${decoded.sessionId}:trust_score`;
+      const hasScore = await redisClient.exists(scoreKey);
+      if (!hasScore) {
+        return res.status(401).json({
+          error: 'Session terminated',
+          message: 'Your session is invalid or has expired. Please login again.',
+        });
+      }
+    }
 
     // 4. Attach to request object
     req.user = decoded;
