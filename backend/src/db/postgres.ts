@@ -137,27 +137,42 @@ export async function initializeDatabase(): Promise<void> {
     await db.query(`
       CREATE TABLE IF NOT EXISTS sessions (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         session_id VARCHAR(255) UNIQUE NOT NULL,
-        trust_score INTEGER DEFAULT 90,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        ended_at TIMESTAMP
+        user_id INTEGER REFERENCES users(id),
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_active BOOLEAN DEFAULT true,
+        device_fingerprint TEXT,
+        ip_address VARCHAR(45)
       )
     `);
 
     console.log('✓ Sessions table ready');
 
+    // Create request_logs table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS request_logs (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(255),
+        user_id INTEGER,
+        endpoint VARCHAR(255),
+        method VARCHAR(10),
+        trust_score INTEGER,
+        allowed BOOLEAN,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    console.log('✓ Request logs table ready');
+
     // Create audit logs table
     await db.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id SERIAL PRIMARY KEY,
+        event_type VARCHAR(50) NOT NULL,
+        user_id INTEGER REFERENCES users(id),
         session_id VARCHAR(255),
-        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-        endpoint VARCHAR(255),
-        method VARCHAR(10),
-        status_code INTEGER,
-        trust_score INTEGER,
-        ip_address VARCHAR(45),
+        details JSONB,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);

@@ -77,6 +77,13 @@ Thumbs.db
 *.swo
 *~
 
+# Compiled TypeScript
+backend/src/**/*.js
+backend/src/**/*.js.map
+backend/src/**/*.d.ts
+backend/src/**/*.d.ts.map
+*.tsbuildinfo
+
 # Package managers
 package-lock.json
 yarn.lock
