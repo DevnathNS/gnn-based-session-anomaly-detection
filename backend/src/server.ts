@@ -8,6 +8,8 @@ import { sessionTrackerMiddleware, getSessionHistory, updateTrustScore } from '.
 import { policyEnforcerMiddleware, getPolicies } from './middleware/policyEnforcer';
 import { initializeDatabase } from './db/postgres';
 import { logger } from './middleware/logger';
+import { fingerprintChecker } from './middleware/fingerprintChecker';
+
 
 const app = express();
 const PORT = 3000;
@@ -45,6 +47,7 @@ app.use(
   '/api',
   authMiddleware,
   sessionTrackerMiddleware,
+  fingerprintChecker,
   policyEnforcerMiddleware,
   logger,
   apiRouter

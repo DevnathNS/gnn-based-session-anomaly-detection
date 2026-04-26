@@ -31,8 +31,10 @@ interface SessionRequest {
 export async function sessionTrackerMiddleware(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
+  
 ) {
+  (req as any).signals = {}; 
   try {
     // Skip session tracking for public endpoints
     if (req.path.startsWith('/public/')) {
@@ -93,6 +95,8 @@ export async function sessionTrackerMiddleware(
       // First request in this minute window
       await redisClient.expire(rateKey, 60);
     }
+    
+    (req as any).signals = { ...(req as any).signals, high_rate:currentRate > 100, request_rate: currentRate };
 
     // 7. Store last endpoint (for building graph edges)
     // Key: session:{sessionId}:last_endpoint
@@ -109,6 +113,10 @@ export async function sessionTrackerMiddleware(
       await redisClient.set(scoreKey, '90', 86400); // 90 points, 24h expiry
       console.log(`[SESSION] New session created: ${sessionId}, initial score: 90`);
     }
+    
+    const hour = new Date().getUTCHours();
+    (req as any).signals = { ...(req as any).signals, is_after_hours: hour < 6 || hour > 22 };
+
 
     // 9. Attach rate limit to request for later use
     (req as any).sessionData = {
