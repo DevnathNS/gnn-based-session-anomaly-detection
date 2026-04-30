@@ -36,6 +36,12 @@ export async function fingerprintChecker(
       let currentScore= currentScoreStr ? parseInt(currentScoreStr) : 90;
       currentScore= Math.max(0,currentScore-20);
       await redisClient.set(scoreKey, currentScore.toString(), 86400);
+
+      const userId = await redisClient.get(`session:${sessionId}:user_id`);
+      if (userId) {
+         await redisClient.set(`user:${userId}:historical_trust_score`, currentScore.toString());
+      }
+
       console.log(`[SCORE] Penalized 20 points. New score: ${currentScore}`);
       await redisClient.set(`session:${sessionId}:fingerprint`, currentFingerprint, 86400);
       

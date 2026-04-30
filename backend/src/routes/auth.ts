@@ -155,14 +155,25 @@ router.post('/login', async (req: Request, res: Response) => {
     // 4. Create session ID
     const sessionId = uuidv4();
 
+    // Determine initial trust score
+    let initialTrustScore = 90;
+    const historicalTrustScoreParts = await redisClient.get(`user:${user.id}:historical_trust_score`);
+    if (historicalTrustScoreParts) {
+       const historicalScoreMatch = historicalTrustScoreParts.match(/^\s*(-?\d+(\.\d+)?)\s*$/);
+       if(historicalScoreMatch && !Number.isNaN(Number(historicalScoreMatch[1]))) {
+          initialTrustScore = Number(historicalScoreMatch[1]);
+       }
+    }
+
+
     // 5. Store session in PostgreSQL
     await db.execute(
       'INSERT INTO sessions (user_id, session_id, trust_score) VALUES ($1, $2, $3)',
-      [user.id, sessionId, 90] // Start with 90 trust score
+      [user.id, sessionId, initialTrustScore] // Use inherited or default score
     );
 
     // 6. Initialize session in Redis
-    await redisClient.set(`session:${sessionId}:trust_score`, '90', 86400); // 24 hours
+    await redisClient.set(`session:${sessionId}:trust_score`, String(initialTrustScore), 86400); // 24 hours
     await redisClient.set(`session:${sessionId}:user_id`, user.id.toString(), 86400);
 
     // 7. Create JWT token
@@ -180,7 +191,7 @@ router.post('/login', async (req: Request, res: Response) => {
       userId: user.id,
       email: user.email,
       sessionId,
-      trustScore: 90,
+      trustScore: initialTrustScore,
       message: 'Login successful',
     });
   } catch (error) {

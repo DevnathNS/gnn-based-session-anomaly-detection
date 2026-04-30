@@ -192,7 +192,15 @@ export async function updateTrustScore(
   try {
     const scoreKey = `session:${sessionId}:trust_score`;
     const clampedScore = Math.max(0, Math.min(100, newScore)); // 0-100 range
+
     await redisClient.set(scoreKey, clampedScore.toString(), 86400);
+
+    // Also update historical trust score for the user to fix the vulnerability
+    const userId = await redisClient.get(`session:${sessionId}:user_id`);
+    if (userId) {
+       await redisClient.set(`user:${userId}:historical_trust_score`, clampedScore.toString());
+    }
+
     console.log(
       `[SCORE] Session ${sessionId} score updated to ${clampedScore}`
     );
