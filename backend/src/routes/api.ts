@@ -167,12 +167,25 @@ router.get('/public/about', (req: Request, res:Response) => {
 	});
 });
 
-router.get('/user/profile', (req: Request, res:Response) => {
-	res.json({
-		endpoint: '/api/user/profile',
-		data: {name: 'Alice', email: 'alice@example.com', role:'user'},
-		timestamp: new Date().toISOString()
-	});
+router.get('/user/profile', async (req: Request, res: Response) => {
+  	try {
+    		const userId = (req as any).user?.userId; 
+    		const user = await db.queryOne('SELECT id, email FROM users WHERE id=$1', [userId]); 
+
+    		res.json({
+      			endpoint: '/api/user/profile', 
+      			data: {
+        			name: user?.email?.split('@')[0], 
+        			email: user?.email, 
+        			role: 'member',
+        			usage: { apiCallsToday: 0, activeProjects: 1 }
+      			},
+      			timestamp: new Date().toISOString() 
+   	 	});
+ 	 } catch (err) {
+   		console.error('Profile fetch error:', err);
+    		res.status(500).json({ error: 'Failed to fetch profile data' });
+ 	 }
 });
 
 
@@ -194,18 +207,28 @@ router.get('/user/settings', (req: Request, res:Response) => {
 	});
 });
 
-router.get('/admin/users', (req: Request, res:Response) => {
-	res.json({
-		endpoint: '/api/admin/users',
-		data: {
-			users : [
-				{id:1, email:'alice@example.com',role:'user'},
-				{id:2, email:'admin@example.com',role:'admin'},				
-			]
-		},
-		timestamp: new Date().toISOString()
-	});
+router.get('/admin/users', async (req: Request, res: Response) => {
+  	try {
+    		const userId = (req as any).user?.userId; 
+    		const users = await db.queryMany('SELECT id, email, created_at FROM users ORDER BY created_at DESC'); 
+    		const formattedUsers = users.map(u => ({
+    		...u,
+    		role: 'member'
+    		}));
+
+    		res.json({
+      			endpoint: '/api/admin/users', 
+      			data: {
+        			users: formattedUsers
+      			},
+      			timestamp: new Date().toISOString() 
+   	 	});
+ 	 } catch (err) {
+   		console.error('Admin users fetch error:', err);
+    		res.status(500).json({ error: 'Failed to fetch profile data' });
+ 	 }
 });
+
 
 router.post('/admin/users/:id/delete', (req: Request, res:Response) => {
 	res.json({
@@ -234,7 +257,7 @@ router.get('/data/export', (req: Request, res:Response) => {
 router.get('/session/stats', async (req: Request, res:Response) => {
 	try {
 		const sessionId = (req as any).user?.sessionId;
-		const currentScore = await redisClient.get(`session:{sessionId}:trust_score`);
+		const currentScore = await redisClient.get(`session:${sessionId}:trust_score`);
 		
 		const recentResult = await db.query (
 		    `SELECT endpoint, method, trust_score, allowed, timestamp

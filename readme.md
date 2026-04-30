@@ -34,6 +34,10 @@ npm run dev
 ```
 
 4. Start frontend
+``` bash
+cd frontend
+npm start
+```
 
 5. Start trust-engine
 
@@ -42,9 +46,9 @@ npm run dev
 |---------|------|--------|
 | Backend API | 3000 | Created |
 | Swagger Docs | 3000/docs | Created |
-| Frontend | 3001 | TBD |
+| Frontend | 3001 | Created |
 | Trust Engine | 8000 | TBD |
-| Redis | 6379 | TBD |
-| PostgreSQL | 5432 | TBD |
+| Redis | 6379 | Created |
+| PostgreSQL | 5432 | Created |
 
 

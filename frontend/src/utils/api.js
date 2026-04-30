@@ -24,15 +24,33 @@ api.interceptors.request.use(
 // ✅ optional: debug responses (helps you now)
 api.interceptors.response.use(
   (response) => {
+    // Keep your original success logs!
     console.log("API RESPONSE:", response.config.url, response.data);
     return response;
   },
   (error) => {
+    // Keep your original error logs!
     console.error(
       "API ERROR:",
       error.response?.status,
       error.response?.data
     );
+
+    const status = error.response?.status;
+    const data = error.response?.data;
+
+    // ✅ Add the new security enforcement logic:
+    if (status === 401 && data?.error === 'Step-up authentication required') {
+       window.dispatchEvent(new CustomEvent('step-up-required', { detail: data }));
+       alert(`SECURITY ALERT: Your trust score dropped to ${data.currentScore}. You must verify your identity to access restricted features.`);
+    } 
+    else if (status === 403 && data?.tier === 'blocked') {
+       alert("Session terminated due to suspicious activity.");
+       localStorage.removeItem('nexora_token');
+       localStorage.removeItem('nexora_user');
+       window.location.href = '/login';
+    }
+
     return Promise.reject(error);
   }
 );

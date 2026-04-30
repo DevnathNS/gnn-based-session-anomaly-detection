@@ -8,6 +8,7 @@ import { redisClient } from '../db/redis';
 const endpointPolicies: Record<string, number> = {
   // Public endpoints - no auth required (but will be after middleware chains)
   '/api/public/*': 0,
+  '/api/session/stats': 0,
 
   // User endpoints - medium trust
   '/api/user/profile': 50,

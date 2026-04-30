@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './swagger';
 import apiRouter from './routes/api';
@@ -10,11 +11,14 @@ import { initializeDatabase } from './db/postgres';
 import { logger } from './middleware/logger';
 import { fingerprintChecker } from './middleware/fingerprintChecker';
 
+const PORT=3000;
 
 const app = express();
-const PORT = 3000;
+app.use(cors({
+  origin: 'http://localhost:3001', // Your React app's port
+  credentials: true
+}));
 
-// Middleware
 app.use(express.json());
 
 // Health check - public

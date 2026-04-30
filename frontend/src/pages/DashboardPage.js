@@ -67,10 +67,26 @@ export default function DashboardPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    api.get('/api/session/stats').then(res => {
-      setData(res.data.data);
-    }).catch(() => {}).finally(() => setLoading(false));
+useEffect(() => {
+    api.get('/api/session/stats')
+      .then(res => {
+        // Normal behavior: Score is high enough, set data normally
+        setData(res.data.data);
+      })
+      .catch((err) => {
+        // Security override: Backend blocked us, but it sent the penalized score!
+        const errorPayload = err.response?.data;
+        
+        if (errorPayload && errorPayload.currentScore !== undefined) {
+          // Manually inject the dropped score into the state so the gauge turns red
+          setData(prevData => ({
+            ...prevData, 
+            currentScore: errorPayload.currentScore,
+            recentRequests: prevData?.recentRequests || [], // Keep old requests if they exist
+          }));
+        }
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const isPro = user?.plan === 'pro' || user?.plan === 'enterprise';

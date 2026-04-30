@@ -21,7 +21,6 @@ export async function fingerprintChecker(
     );
 
     if (!storedFingerprint) {
-      // First request — store fingerprint
       await redisClient.set(
         `session:${sessionId}:fingerprint`,
         currentFingerprint,
@@ -29,9 +28,17 @@ export async function fingerprintChecker(
       );
       (req as any).signals = { ...(req as any).signals, device_changed: false };
     } else if (storedFingerprint !== currentFingerprint) {
-      // Fingerprint changed — flag it
       console.log(`[FINGERPRINT] Device change detected for session ${sessionId}`);
       (req as any).signals = { ...(req as any).signals, device_changed: true };
+      
+      const scoreKey=`session:${sessionId}:trust_score`;
+      const currentScoreStr = await redisClient.get(scoreKey);
+      let currentScore= currentScoreStr ? parseInt(currentScoreStr) : 90;
+      currentScore= Math.max(0,currentScore-20);
+      await redisClient.set(scoreKey, currentScore.toString(), 86400);
+      console.log(`[SCORE] Penalized 20 points. New score: ${currentScore}`);
+      await redisClient.set(`session:${sessionId}:fingerprint`, currentFingerprint, 86400);
+      
     } else {
       (req as any).signals = { ...(req as any).signals, device_changed: false };
     }

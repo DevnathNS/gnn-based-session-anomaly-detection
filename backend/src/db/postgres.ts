@@ -139,12 +139,22 @@ export async function initializeDatabase(): Promise<void> {
         id SERIAL PRIMARY KEY,
         session_id VARCHAR(255) UNIQUE NOT NULL,
         user_id INTEGER REFERENCES users(id),
+        trust_score INTEGER DEFAULT 90,
         started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ended_at TIMESTAMP,
         is_active BOOLEAN DEFAULT true,
         device_fingerprint TEXT,
         ip_address VARCHAR(45)
       )
+    `);
+    
+    await db.query(`
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS trust_score INTEGER DEFAULT 90
+    `);
+    
+    await db.query(`
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS ended_at TIMESTAMP
     `);
 
     console.log('✓ Sessions table ready');
