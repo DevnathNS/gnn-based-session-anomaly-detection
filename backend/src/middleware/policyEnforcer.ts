@@ -1,26 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { redisClient } from '../db/redis';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Policy definition for endpoints
  * Maps endpoint patterns to required minimum trust score
  */
-const endpointPolicies: Record<string, number> = {
-  // Public endpoints - no auth required (but will be after middleware chains)
-  '/api/public/*': 0,
-  '/api/session/stats': 0,
-
-  // User endpoints - medium trust
-  '/api/user/profile': 50,
-  '/api/user/settings': 50,
-
-  // Admin endpoints - high trust
-  '/api/admin/*': 85,
-
-  // Sensitive/Payment endpoints - very high trust
-  '/api/payments/*': 90,
-  '/api/data/export': 90,
-};
+const configPath= path.resolve(__dirname,'../config/scoring-rules.json');
+const scoringConfig= JSON.parse(fs.readFileSync(configPath,'utf8'));
 
 /**
  * Get the required minimum score for an endpoint
@@ -33,16 +21,18 @@ const endpointPolicies: Record<string, number> = {
  */
 function getRequiredScore(endpoint: string): number {
   // Try exact match first
-  if (endpointPolicies[endpoint]) {
-    return endpointPolicies[endpoint];
+  const policies = scoringConfig.endpoint_policies;
+  
+  if (policies[endpoint]!==undefined) {
+    return policies[endpoint];
   }
 
   // Try pattern match (with wildcard)
-  for (const [pattern, score] of Object.entries(endpointPolicies)) {
+  for (const [pattern, score] of Object.entries(policies)) {
     if (pattern.includes('*')) {
       const regex = new RegExp('^' + pattern.replace('*', '.*') + '$');
       if (regex.test(endpoint)) {
-        return score;
+        return score as number;
       }
     }
   }
@@ -61,9 +51,10 @@ function getRequiredScore(endpoint: string): number {
  * - Blocked (0-19): Session likely compromised
  */
 function getAccessTier(score: number): 'full' | 'limited' | 'restricted' | 'blocked' {
-  if (score >= 80) return 'full';
-  if (score >= 50) return 'limited';
-  if (score >= 20) return 'restricted';
+  const tiers = scoringConfig.tiers;
+  if (score >= tiers.full.min) return 'full';
+  if (score >= tiers.limited.min) return 'limited';
+  if (score >= tiers.restricted.min) return 'restricted';
   return 'blocked';
 }
 
@@ -238,7 +229,7 @@ export async function overridePolicy(
  *   const policies = getPolicies();
  */
 export function getPolicies(): Record<string, number> {
-  return { ...endpointPolicies };
+  return { ...scoringConfig.endpoint_policies };
 }
 
 /**
@@ -249,9 +240,10 @@ export function getPolicies(): Record<string, number> {
  *   updateEndpointPolicy('/api/admin/users', 80);
  */
 export function updateEndpointPolicy(endpoint: string, minScore: number): void {
-  endpointPolicies[endpoint] = Math.max(0, Math.min(100, minScore));
+  const policies = scoringConfig.endpoint_policies
+  policies[endpoint] = Math.max(0, Math.min(100, minScore));
   console.log(
-    `[POLICY] Updated ${endpoint} to require score ${endpointPolicies[endpoint]}`
+    `[POLICY] Updated ${endpoint} to require score ${policies[endpoint]}`
   );
 }
 

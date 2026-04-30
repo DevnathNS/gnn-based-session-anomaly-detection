@@ -1,0 +1,33 @@
+{
+	"initial_score": 90,
+	"min_score": 0,
+	"max_score": 100,
+	"deductions": {
+		"ip_change":-25,
+		"geo_jump_penalty":-40,
+		"geo_jump_threshold_km":500,
+		"new_device":-20,
+		"high_rate_penalty":-15,
+		"rate_limit_threshold":100,
+		"after_hours": -5
+	}, 
+	"increases": {
+		"sucessful_step_up": 30,
+		"consistent_24hrs": 10
+	},
+	"tiers": {
+		"full": {"min":80, "max":100},
+		"limited": {"min":50, "max":79},
+		"restricted": {"min":20, "max":49},
+		"blocked": {"min":0, "max":19}
+	},
+	"endpoint_policies": {
+		"/api/public/*": 0,
+		"/api/session/stats": 0,
+		"/api/user/profile": 50,
+		"/api/user/settings": 50,
+		"/api/admin/*": 85,
+		"/api/payments/*": 90,
+		"/api/data/export": 90
+  }
+}
