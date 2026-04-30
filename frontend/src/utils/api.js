@@ -2,12 +2,27 @@
 
 import axios from "axios";
 
+const getDeviceFingerprint = () => {
+   let fp=localStorage.getItem("device_fingerprint");
+   if(!fp) {
+      fp= crypto.randomUUID ? crytpo.randomUUID() : Math.random().toString(36).substring(2);
+      localStorage.setItem("device_fingerprint",fp);
+   }
+   return fp;
+}
+
+
+
 const api = axios.create({
-  baseURL: "http://localhost:3000", // ✅ FIXED (backend port)
+  baseURL: "http://localhost:3000",
 headers: {
   "Content-Type": "application/json",
+  "X-Device-Fingerprint": getDeviceFingerprint(),
 },
 });
+
+
+
 
 // ✅ ALWAYS attach latest token
 api.interceptors.request.use(
