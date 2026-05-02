@@ -291,4 +291,37 @@ router.get('/session/stats', async (req: Request, res:Response) => {
 	}
 });
 
+/**
+ * @swagger
+ * /api/session/graph:
+ *    get:
+ *       summary: Get current session graph representing user navigation
+ *       tags: [Session]
+ *       security:
+ *          - bearerAuth: []
+ *       responses:
+ *          200:
+ *             description: Graph nodes and edges
+ */
+router.get('/session/graph', async (req: Request, res: Response) => {
+    try {
+        const sessionId = (req as any).user?.sessionId || (req as any).sessionId;
+        if (!sessionId) {
+             return res.status(401).json({error: "Missing session"});
+        }
+        
+        const graphStr = await redisClient.get(`session:${sessionId}:graph`);
+        const graph = graphStr ? JSON.parse(graphStr) : { nodes: [], edges: [] };
+
+        res.json({
+            endpoint: '/api/session/graph',
+            data: graph,
+            timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+        console.error('Graph fetch error:', err);
+        res.status(500).json({ error: 'Failed to fetch session graph' });
+    }
+});
+
 export default router;

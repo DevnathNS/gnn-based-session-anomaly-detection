@@ -14,6 +14,66 @@ interface SessionRequest {
   device?: string;
 }
 
+interface SessionGraph {
+  nodes: {
+    id: string;              // e.g., "/api/user/profile"
+    sensitivity: number;     // 0=public, 1=user, 2=admin, 3=critical
+    accessCount: number;     // How many times accessed
+    lastAccessed: number;    // Timestamp
+  }[];
+  
+  edges: {
+    from: string;            // e.g., "/api/dashboard"
+    to: string;              // e.g., "/api/profile"
+    timeDelta: number;       // Milliseconds between accesses
+    method: string;          // GET, POST, etc.
+  }[];
+}
+
+function getSensitivity(endpoint: string): number {
+  if (endpoint.startsWith('/api/public')) return 0;
+  if (endpoint.startsWith('/api/user')) return 1;
+  if (endpoint.startsWith('/api/admin')) return 2;
+  if (endpoint.startsWith('/api/payment') || endpoint.startsWith('/api/data')) return 3;
+  return 0;
+}
+
+export async function updateSessionGraph(req: Request, sessionId: string) {
+  try {
+    let graphStr = await redisClient.get(`session:${sessionId}:graph`);
+    let graph: SessionGraph = graphStr ? JSON.parse(graphStr) : { nodes: [], edges: [] };
+    
+    const currentEndpoint = req.path;
+    
+    let node = graph.nodes.find(n => n.id === currentEndpoint);
+    if (!node) {
+      node = {
+        id: currentEndpoint,
+        sensitivity: getSensitivity(currentEndpoint),
+        accessCount: 0,
+        lastAccessed: Date.now()
+      };
+      graph.nodes.push(node);
+    }
+    node.accessCount++;
+    node.lastAccessed = Date.now();
+    
+    const lastEndpoint = await redisClient.get(`session:${sessionId}:last_endpoint`);
+    if (lastEndpoint && lastEndpoint !== currentEndpoint) {
+      graph.edges.push({
+        from: lastEndpoint,
+        to: currentEndpoint,
+        timeDelta: Date.now() - node.lastAccessed,
+        method: req.method
+      });
+    }
+    
+    await redisClient.set(`session:${sessionId}:graph`, JSON.stringify(graph), 86400);
+  } catch (error) {
+    console.error('Session graph update error:', error);
+  }
+}
+
 /**
  * Session Tracking Middleware
  *
@@ -116,7 +176,9 @@ export async function sessionTrackerMiddleware(
     
     const hour = new Date().getUTCHours();
     (req as any).signals = { ...(req as any).signals, is_after_hours: hour < 6 || hour > 22 };
-
+    
+    // 8.5 Update Dynamic Session Graph 
+    await updateSessionGraph(req, sessionId);
 
     // 9. Attach rate limit to request for later use
     (req as any).sessionData = {
@@ -224,6 +286,7 @@ export async function terminateSession(sessionId: string): Promise<boolean> {
     await redisClient.del(`session:${sessionId}:rate_limit`);
     await redisClient.del(`session:${sessionId}:trust_score`);
     await redisClient.del(`session:${sessionId}:last_endpoint`);
+    await redisClient.del(`session:${sessionId}:graph`);
     console.log(`[SESSION] Session terminated: ${sessionId}`);
     return true;
   } catch (error) {

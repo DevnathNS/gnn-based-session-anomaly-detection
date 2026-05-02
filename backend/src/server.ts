@@ -10,6 +10,7 @@ import { policyEnforcerMiddleware, getPolicies } from './middleware/policyEnforc
 import { initializeDatabase } from './db/postgres';
 import { logger } from './middleware/logger';
 import { fingerprintChecker } from './middleware/fingerprintChecker';
+import { trustEngineMiddleware } from './middleware/trustEngine';
 
 const PORT=3000;
 
@@ -44,14 +45,17 @@ app.use('/api/public', apiRouter);
 // Middleware chain:
 // 1. authMiddleware → Verify JWT
 // 2. sessionTrackerMiddleware → Track request, init score
-// 3. policyEnforcerMiddleware → Check access policy
-// 4. apiRouter → Actual routes
+// 3. fingerprintChecker -> Checks fingerprint 
+// 4. trustEngineMiddleware -> Calling the python microservice
+// 5. policyEnforcerMiddleware → Check access policy
+// 6. apiRouter → Actual routes
 
 app.use(
   '/api',
   authMiddleware,
   sessionTrackerMiddleware,
   fingerprintChecker,
+  trustEngineMiddleware,
   policyEnforcerMiddleware,
   logger,
   apiRouter
