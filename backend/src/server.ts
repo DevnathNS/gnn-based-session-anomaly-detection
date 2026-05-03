@@ -11,6 +11,7 @@ import { initializeDatabase } from './db/postgres';
 import { logger } from './middleware/logger';
 import { fingerprintChecker } from './middleware/fingerprintChecker';
 import { trustEngineMiddleware } from './middleware/trustEngine';
+import { startGraphArchiver } from './services/graphArchiver';
 
 const PORT=3000;
 
@@ -122,6 +123,7 @@ const startServer = async () => {
     await initializeDatabase();
 
     // 2. Start listening
+    startGraphArchiver();
     app.listen(PORT, () => {
       console.log(`\n╔════════════════════════════════════════════════════════╗`);
       console.log(`║        ADAPTIVE TRUST SESSION MANAGEMENT SYSTEM         ║`);

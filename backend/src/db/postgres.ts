@@ -189,11 +189,25 @@ export async function initializeDatabase(): Promise<void> {
 
     console.log('✓ Audit logs table ready');
 
+
     // Create indexes for performance
     await db.query(`
       CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)
     `);
-
+	
+	 await pool.query(`
+      CREATE TABLE IF NOT EXISTS session_graphs (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(255) UNIQUE NOT NULL,
+        nodes JSONB NOT NULL,
+        edges JSONB NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    console.log('✓ `session_graphs` table is ready.');
+	
     await db.query(`
       CREATE INDEX IF NOT EXISTS idx_sessions_session_id ON sessions(session_id)
     `);
