@@ -2,13 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { redisClient } from '../db/redis';
 import fs from 'fs';
 import path from 'path';
-
-/**
- * Policy definition for endpoints
- * Maps endpoint patterns to required minimum trust score
- */
-const configPath= path.resolve(__dirname,'../config/scoring-rules.json');
-const scoringConfig= JSON.parse(fs.readFileSync(configPath,'utf8'));
+import scoringConfig from '../config/scoring-rules.json';
 
 /**
  * Get the required minimum score for an endpoint

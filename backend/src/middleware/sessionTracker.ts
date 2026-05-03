@@ -32,9 +32,9 @@ interface SessionGraph {
 
 function getSensitivity(endpoint: string): number {
   if (endpoint.startsWith('/api/public')) return 0;
-  if (endpoint.startsWith('/api/user')) return 1;
-  if (endpoint.startsWith('/api/admin')) return 2;
-  if (endpoint.startsWith('/api/payment') || endpoint.startsWith('/api/data')) return 3;
+  if (endpoint.startsWith('/api/user') || endpoint.startsWith('/user')) return 1;
+  if (endpoint.startsWith('/api/admin') || endpoint.startsWith('/admin')) return 2;
+  if (endpoint.startsWith('/api/payment') || endpoint.startsWith('/payment')) return 3;
   return 0;
 }
 
@@ -43,7 +43,7 @@ export async function updateSessionGraph(req: Request, sessionId: string) {
     let graphStr = await redisClient.get(`session:${sessionId}:graph`);
     let graph: SessionGraph = graphStr ? JSON.parse(graphStr) : { nodes: [], edges: [] };
     
-    const currentEndpoint = req.path;
+    const currentEndpoint = req.originalUrl.split('?')[0]; // Better tracking with base url mapping
     
     let node = graph.nodes.find(n => n.id === currentEndpoint);
     if (!node) {
@@ -55,15 +55,18 @@ export async function updateSessionGraph(req: Request, sessionId: string) {
       };
       graph.nodes.push(node);
     }
+    
+    const previousAccessTime = node.lastAccessed; 
     node.accessCount++;
     node.lastAccessed = Date.now();
     
-    const lastEndpoint = await redisClient.get(`session:${sessionId}:last_endpoint`);
+    // Use the tracker we safely pulled out before writing
+    const lastEndpoint = (req as any).previousEndpointTracking; 
     if (lastEndpoint && lastEndpoint !== currentEndpoint) {
       graph.edges.push({
         from: lastEndpoint,
         to: currentEndpoint,
-        timeDelta: Date.now() - node.lastAccessed,
+        timeDelta: Date.now() - previousAccessTime,
         method: req.method
       });
     }
@@ -157,12 +160,16 @@ export async function sessionTrackerMiddleware(
     }
     
     (req as any).signals = { ...(req as any).signals, high_rate:currentRate > 100, request_rate: currentRate };
+    
+    // We must read the previous tracked last endpoint BEFORE we overwrite it for Graph tracking
+    const previousTargetTracking = await redisClient.get(`session:${sessionId}:last_endpoint`);
+    (req as any).previousEndpointTracking = previousTargetTracking;
 
     // 7. Store last endpoint (for building graph edges)
     // Key: session:{sessionId}:last_endpoint
     const lastEndpointKey = `session:${sessionId}:last_endpoint`;
     await redisClient.set(lastEndpointKey, endpoint, 86400); // 24h expiry
-
+    
     // 8. Initialize default trust score if session is new
     // Key: session:{sessionId}:trust_score
     const scoreKey = `session:${sessionId}:trust_score`;
