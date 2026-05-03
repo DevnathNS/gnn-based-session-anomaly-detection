@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
+import GraphViewer from '../components/GraphViewer'
 
 const card = {
   background: 'var(--surface)', border: '1px solid var(--border)',
@@ -161,7 +162,7 @@ useEffect(() => {
               {recentRequests.length === 0 && <p style={{ fontSize: 13, color: 'var(--text3)' }}>No recent activity.</p>}
             </div>
           </div>
-
+	  
           {/* Activity feed */}
           <div style={card}>
             <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: 'var(--text)', marginBottom: 20 }}>Recent Activity</h2>
@@ -184,6 +185,12 @@ useEffect(() => {
             </div>
           </div>
         </div>
+        
+        {/* Graph Viewer*/}
+        <div style={{marginBottom: 24}}>
+        	<GraphViewer />
+        </div>
+        
 
         {/* Role/plan-specific sections */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>

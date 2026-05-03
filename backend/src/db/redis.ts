@@ -69,7 +69,7 @@ export const redisClient = {
   async set(key: string, value: string, expirySeconds?: number): Promise<void> {
     try {
       if (expirySeconds) {
-        await client.setEx(key, expirySeconds, value);
+        await client.set(key, value, { EX: expirySeconds });
       } else {
         await client.set(key, value);
       }
