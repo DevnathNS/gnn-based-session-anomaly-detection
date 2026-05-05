@@ -1,3 +1,9 @@
 fastapi
 uvicorn
 pydantic
+geoip2
+requests
+torch
+torch-geometric
+scikit-learn
+numpy

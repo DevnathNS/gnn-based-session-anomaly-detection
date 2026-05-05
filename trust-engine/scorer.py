@@ -39,6 +39,9 @@ def calculate_score(signals):
     if signals.get('ip_changed'):
         score += deductions['ip_change']
         
+    if signals.get('impossible_travel'):
+        score += deductions.get('impossible_travel', -20)
+        
     if signals.get('geo_distance', 0) > deductions['geo_jump_threshold_km']:
         score += deductions['geo_jump_penalty']
         
@@ -54,7 +57,7 @@ def calculate_score(signals):
     increases = config['increases']
     # Increases
     if signals.get('successful_step_up'):
-        score += increases['sucessful_step_up']
+        score += increases['successful_step_up']
         
     if signals.get('consistent_24hrs'):
         score += increases['consistent_24hrs']

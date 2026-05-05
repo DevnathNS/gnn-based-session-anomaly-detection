@@ -9,10 +9,11 @@
 		"new_device":-20,
 		"high_rate_penalty":-15,
 		"rate_limit_threshold":100,
-		"after_hours": -5
+		"after_hours": -5,
+		"impossible_travel": -20
 	}, 
 	"increases": {
-		"sucessful_step_up": 30,
+		"successful_step_up": 30,
 		"consistent_24hrs": 10
 	},
 	"tiers": {

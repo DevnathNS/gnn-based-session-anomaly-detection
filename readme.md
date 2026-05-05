@@ -40,14 +40,18 @@ npm start
 ```
 
 5. Start trust-engine
-
+```bash
+cd trust-engine
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
 ## Service Ports
 | Service | Port | Status |
 |---------|------|--------|
 | Backend API | 3000 | Created |
 | Swagger Docs | 3000/docs | Created |
 | Frontend | 3001 | Created |
-| Trust Engine | 8000 | TBD |
+| Trust Engine | 8000 | Running |
 | Redis | 6379 | Created |
 | PostgreSQL | 5432 | Created |
 

@@ -23,17 +23,33 @@ export async function trustEngineMiddleware(req: Request, res: Response, next: N
 
     const currentScore = parseInt(await redisClient.get(`session:${sessionId}:trust_score`) || '90');
     
+    const prevIpKey = `session:${sessionId}:last_ip`;
+    const prevLocKey = `session:${sessionId}:last_location`;
+    const prevTsKey  = `session:${sessionId}:last_ip_ts`;
+
+    const previousIp  = await redisClient.get(prevIpKey);
+    const previousLoc = await redisClient.get(prevLocKey);
+    const previousTs  = await redisClient.get(prevTsKey);
+
+    const ipChanged = !!previousIp && previousIp !== ip;
+
     // Create the payload
     const payload = {
         session_id: sessionId,
         ip: ip,
+        ip_changed: ipChanged,
+        previous_ip: previousIp || ip,
+        previous_location: previousLoc ? JSON.parse(previousLoc) : null,
+        previous_ts: previousTs ? parseInt(previousTs) : null,
         requests_per_minute: signals.request_rate || (await redisClient.get(rateKey)) || 0,
         device_fingerprint: req.headers['x-device-fingerprint'] || 'unknown',
         device_changed: signals.device_changed || false,
         is_after_hours: signals.is_after_hours || false,
         high_rate: signals.high_rate || false,
         login_failure: false,
-        recent_changes: false
+        recent_changes: false,
+        current_score: currentScore,
+        graph: JSON.parse(await redisClient.get(`session:${sessionId}:graph`) || '{}')
     };
 
     const start = Date.now();
@@ -43,6 +59,12 @@ export async function trustEngineMiddleware(req: Request, res: Response, next: N
     
     if (response.data && response.data.final_score !== undefined) {
         let newScore = response.data.final_score;
+        
+        await redisClient.set(prevIpKey, ip, 86400);
+        if (response.data.current_location) {
+            await redisClient.set(prevLocKey, JSON.stringify(response.data.current_location), 86400);
+        }
+        await redisClient.set(prevTsKey, Date.now().toString(), 86400);
         
         // Caching optimization: Only update if the score differs, or at intervals (We just update redis directly to emulate cache)
         if(newScore !== currentScore) {
