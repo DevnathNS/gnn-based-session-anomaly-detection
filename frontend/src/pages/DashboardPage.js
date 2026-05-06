@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import GraphViewer from '../components/GraphViewer'
+import GraphViewer from '../components/GraphViewer';
 
 const card = {
   background: 'var(--surface)', border: '1px solid var(--border)',
@@ -130,7 +130,7 @@ useEffect(() => {
           <StatCard label="Session Status" value={data?.currentScore > 50 ? 'Active' : 'Locked'} />
         </div>
 
-        {/* Projects */}
+
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 24 }}>
           <div style={card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>

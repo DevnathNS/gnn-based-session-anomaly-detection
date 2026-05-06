@@ -5,7 +5,7 @@ import axios from "axios";
 const getDeviceFingerprint = () => {
    let fp=localStorage.getItem("device_fingerprint");
    if(!fp) {
-      fp= crypto.randomUUID ? crytpo.randomUUID() : Math.random().toString(36).substring(2);
+      fp= crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
       localStorage.setItem("device_fingerprint",fp);
    }
    return fp;

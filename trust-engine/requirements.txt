@@ -7,3 +7,4 @@ torch
 torch-geometric
 scikit-learn
 numpy
+psycopg2-binary

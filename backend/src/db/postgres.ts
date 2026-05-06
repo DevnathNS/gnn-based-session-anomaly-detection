@@ -201,6 +201,7 @@ export async function initializeDatabase(): Promise<void> {
         session_id VARCHAR(255) UNIQUE NOT NULL,
         nodes JSONB NOT NULL,
         edges JSONB NOT NULL,
+        label VARCHAR(20),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
