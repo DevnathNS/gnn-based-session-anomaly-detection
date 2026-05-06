@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from scorer import calculate_score
 from typing import Dict, Any, Optional
 import geoip
+from gnn_model import extract_graph_features
 
 app = FastAPI(title="Trust Engine")
 
@@ -27,6 +28,38 @@ def gnn_score(graph: Dict[str, Any]):
     # STUB — replace with real inference in Week 6
     # Real implementation loads GraphSAGE from gnn_model.py
     return {'gnn_score': 85, 'anomaly_probability': 0.15}
+
+@app.post('/extract_features')
+def extract_features(graph: Dict[str, Any]):
+    """
+    Extract features from a session graph for GNN input preparation.
+    
+    Request: {
+        'nodes': [...],
+        'edges': [...]
+    }
+    
+    Response: {
+        'node_features': [[...], [...], ...],
+        'edge_features': [[...], [...], ...],
+        'num_nodes': int,
+        'num_edges': int,
+        'avg_sensitivity': float,
+        'avg_access_count': float
+    }
+    """
+    try:
+        features = extract_graph_features(graph)
+        return {
+            'success': True,
+            'features': features
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e),
+            'features': None
+        }
 
 @app.post("/calculate_score")
 def score(signals: Signals):

@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import SAGEConv
 from torch_geometric.data import Data
 import numpy as np
+from typing import Dict, Any, List
 
 # HTTP Method mapping
 METHOD_MAP = {'GET': 0, 'POST': 1, 'PUT': 2, 'DELETE': 3}
@@ -34,6 +35,90 @@ class GraphSAGE(torch.nn.Module):
         out = self.classifier(x)
         return torch.sigmoid(out)
 
+def extract_node_features(node: Dict[str, Any]) -> List[float]:
+    """
+    Extract node-level features from a session graph node.
+    Returns: [sensitivity, accessCount, timeSinceLastAccess_min, isSensitive]
+    """
+    sensitivity = node.get('sensitivity', 0)
+    access_count = node.get('accessCount', 0)
+    time_since = min(node.get('timeSinceLastAccess', 0) / 60000.0, 1440.0)  # clamped to 24h in minutes
+    is_sensitive = 1.0 if sensitivity >= 2 else 0.0
+    
+    return [float(sensitivity), float(access_count), float(time_since), float(is_sensitive)]
+
+def extract_edge_features(edge: Dict[str, Any]) -> List[float]:
+    """
+    Extract edge-level features from a session graph edge.
+    Returns: [timeDelta_sec, method_encoded, is_sensitive_transition]
+    """
+    time_delta = edge.get('timeDelta', 0) / 1000.0  # convert ms to seconds
+    method = float(METHOD_MAP.get(edge.get('method', 'GET'), 0))
+    is_sensitive = 1.0 if edge.get('method') in ['POST', 'PUT', 'DELETE'] else 0.0
+    
+    return [float(time_delta), float(method), float(is_sensitive)]
+
+def normalize_features(features: List[List[float]]) -> List[List[float]]:
+    """
+    Normalize feature vectors to 0-1 range using min-max scaling.
+    Handles empty or single-value features gracefully.
+    """
+    if not features:
+        return []
+    
+    features_array = np.array(features)
+    num_features = features_array.shape[1]
+    normalized = np.zeros_like(features_array, dtype=float)
+    
+    for i in range(num_features):
+        col = features_array[:, i]
+        col_min = np.min(col)
+        col_max = np.max(col)
+        
+        if col_max - col_min > 0:
+            normalized[:, i] = (col - col_min) / (col_max - col_min)
+        else:
+            # If all values are the same, set to 0.5 (middle)
+            normalized[:, i] = 0.5
+    
+    return normalized.tolist()
+
+def extract_graph_features(graph_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract all features from a session graph.
+    Returns: {
+        'node_features': list of normalized node features,
+        'edge_features': list of normalized edge features,
+        'num_nodes': int,
+        'num_edges': int,
+        'avg_sensitivity': float,
+        'avg_access_count': float
+    }
+    """
+    nodes = graph_dict.get('nodes', [])
+    edges = graph_dict.get('edges', [])
+    
+    # Extract node features
+    node_features = [extract_node_features(n) for n in nodes]
+    normalized_node_features = normalize_features(node_features) if node_features else []
+    
+    # Extract edge features
+    edge_features = [extract_edge_features(e) for e in edges]
+    normalized_edge_features = normalize_features(edge_features) if edge_features else []
+    
+    # Calculate summary statistics
+    avg_sensitivity = np.mean([n.get('sensitivity', 0) for n in nodes]) if nodes else 0.0
+    avg_access_count = np.mean([n.get('accessCount', 0) for n in nodes]) if nodes else 0.0
+    
+    return {
+        'node_features': normalized_node_features,
+        'edge_features': normalized_edge_features,
+        'num_nodes': len(nodes),
+        'num_edges': len(edges),
+        'avg_sensitivity': float(avg_sensitivity),
+        'avg_access_count': float(avg_access_count)
+    }
+
 def graph_to_pyg(graph_dict):
     """
     Converts SessionGraph JSON format into a PyTorch Geometric Data object.
@@ -42,31 +127,24 @@ def graph_to_pyg(graph_dict):
     edges = graph_dict.get('edges', [])
     
     if not nodes:
-        # Return empty data structure with 5 dimensions
-        return Data(x=torch.zeros((0, 5), dtype=torch.float), edge_index=torch.zeros((2, 0), dtype=torch.long))
+        # Return empty data structure with 4 dimensions
+        return Data(x=torch.zeros((0, 4), dtype=torch.float), edge_index=torch.zeros((2, 0), dtype=torch.long))
 
-    max_access = max([n.get('accessCount', 1) for n in nodes]) or 1
-
-    x_features = []
-    # Node features: [sensitivity, accessCount_norm, timeSinceLastAccess_min, isSensitive, method]
-    for n in nodes:
-        sens = n.get('sensitivity', 0)
-        acc_cnt = n.get('accessCount', 0) / max_access
-        time_min = min(n.get('timeSinceLastAccess', 0) / 60000.0, 1440.0) # clamped to 24h
-        is_sens = 1 if sens >= 2 else 0
-        method = METHOD_MAP.get(n.get('method', 'GET'), 0)
-        x_features.append([sens, acc_cnt, time_min, is_sens, method])
-        
+    x_features = [extract_node_features(n) for n in nodes]
     x = torch.tensor(x_features, dtype=torch.float)
 
+    # Build edge index with node ID to index mapping
+    node_ids = [n.get('id') for n in nodes]
+    node_id_to_idx = {nid: idx for idx, nid in enumerate(node_ids)}
+    
     edge_list = []
     for e in edges:
-        source = e.get('source')
-        target = e.get('target')
-        # In a real scenario we need to map source/target string IDs to node indices
-        # Assuming source and target are indices for this stub
-        if isinstance(source, int) and isinstance(target, int):
-            edge_list.append([source, target])
+        source = e.get('from')
+        target = e.get('to')
+        
+        # Map string IDs to indices
+        if source in node_id_to_idx and target in node_id_to_idx:
+            edge_list.append([node_id_to_idx[source], node_id_to_idx[target]])
             
     if not edge_list:
         edge_index = torch.zeros((2, 0), dtype=torch.long)
