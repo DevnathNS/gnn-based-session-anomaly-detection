@@ -114,7 +114,8 @@ export async function sessionTrackerMiddleware(
     }
 
     // 2. Extract request metadata
-    const endpoint = req.path;
+    // Use originalUrl (strip query string) so stored endpoints match mounted route paths (/api/...)
+    const endpoint = req.originalUrl.split('?')[0];
     const method = req.method;
     const ip = req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || 'unknown';
