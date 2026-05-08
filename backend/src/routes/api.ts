@@ -258,6 +258,7 @@ router.get('/session/stats', async (req: Request, res:Response) => {
 	try {
 		const sessionId = (req as any).user?.sessionId;
 		const currentScore = await redisClient.get(`session:${sessionId}:trust_score`);
+		console.log(`[DEBUG STATS API] sessionId: ${sessionId}, redis GET returned: ${currentScore}`);
 		
 		const recentResult = await db.query (
 		    `SELECT endpoint, method, trust_score, allowed, timestamp
@@ -267,7 +268,7 @@ router.get('/session/stats', async (req: Request, res:Response) => {
 		    LIMIT 20`,
 		    [sessionId]
 		);
-		
+
 		const historyResult = await db.query (
 		    `SELECT trust_score, timestamp
 		    FROM request_logs

@@ -16,7 +16,7 @@ class Signals(BaseModel):
     geo_distance: int = 0
     impossible_travel: bool = False
     device_changed: bool = False
-    request_rate: int = 0
+    requests_per_minute: int = 0
     is_after_hours: bool = False
     successful_step_up: bool = False
     consistent_24hrs: bool = False
@@ -77,6 +77,8 @@ def score(signals: Signals):
     
     final = rule_score  # use rule-only until GNN is trained
     # final = round(0.4 * rule_score + 0.6 * gnn_s)  # re-enable later
+    
+    print(f"DEBUG SCORE: {signals_dict} => rule_score: {rule_score}, final: {final}")
     
     return {
         'final_score': max(0, min(100, final)),
