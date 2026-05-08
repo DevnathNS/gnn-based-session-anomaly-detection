@@ -11,7 +11,7 @@ from torch_geometric.data import Data
 import json
 import psycopg2
 import numpy as np
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import os
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from datetime import datetime
@@ -27,6 +27,9 @@ DB_CONFIG = {
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"[TRAINING] Using device: {device}")
+
+# HTTP Method mapping
+METHOD_MAP = {'GET': 0, 'POST': 1, 'PUT': 2, 'DELETE': 3, 'PATCH': 4, 'OPTIONS': 5}
 
 # ============================================================================
 # MODEL DEFINITION
@@ -87,10 +90,10 @@ def load_graphs_from_db() -> List[Tuple[Dict, int]]:
         rows = cursor.fetchall()
         graphs = []
         
-        for nodes_json, edges_json, label in rows:
+        for nodes, edges, label in rows:
             graph = {
-                'nodes': json.loads(nodes_json),
-                'edges': json.loads(edges_json)
+                'nodes': nodes,
+                'edges': edges
             }
             label_int = 1 if label == 'attack' else 0
             graphs.append((graph, label_int))
@@ -106,13 +109,20 @@ def load_graphs_from_db() -> List[Tuple[Dict, int]]:
         return []
 
 def extract_node_features(node: Dict) -> List[float]:
-    """Extract features from node"""
-    sensitivity = node.get('sensitivity', 0)
-    access_count = node.get('accessCount', 0)
-    time_since = min(node.get('timeSinceLastAccess', 0) / 60000.0, 1440.0)
+    """
+    Extract features from node.
+    Features: [sensitivity, accessCount, method_encoded, isSensitive]
+    """
+    sensitivity = float(node.get('sensitivity', 0))
+    access_count = float(node.get('accessCount', 0))
+    
+    # Encode method
+    method = node.get('method', 'GET')
+    method_encoded = float(METHOD_MAP.get(method, 0))
+    
     is_sensitive = 1.0 if sensitivity >= 2 else 0.0
     
-    return [float(sensitivity), float(access_count), float(time_since), float(is_sensitive)]
+    return [sensitivity, access_count, method_encoded, is_sensitive]
 
 def graph_to_pyg(graph: Dict, label: int) -> Data:
     """Convert session graph to PyTorch Geometric format"""

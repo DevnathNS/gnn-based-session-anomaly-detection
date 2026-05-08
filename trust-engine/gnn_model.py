@@ -38,14 +38,18 @@ class GraphSAGE(torch.nn.Module):
 def extract_node_features(node: Dict[str, Any]) -> List[float]:
     """
     Extract node-level features from a session graph node.
-    Returns: [sensitivity, accessCount, timeSinceLastAccess_min, isSensitive]
+    Returns: [sensitivity, accessCount, method_encoded, isSensitive]
     """
-    sensitivity = node.get('sensitivity', 0)
-    access_count = node.get('accessCount', 0)
-    time_since = min(node.get('timeSinceLastAccess', 0) / 60000.0, 1440.0)  # clamped to 24h in minutes
+    sensitivity = float(node.get('sensitivity', 0))
+    access_count = float(node.get('accessCount', 0))
+    
+    # Encode method
+    method = node.get('method', 'GET')
+    method_encoded = float(METHOD_MAP.get(method, 0))
+    
     is_sensitive = 1.0 if sensitivity >= 2 else 0.0
     
-    return [float(sensitivity), float(access_count), float(time_since), float(is_sensitive)]
+    return [sensitivity, access_count, method_encoded, is_sensitive]
 
 def extract_edge_features(edge: Dict[str, Any]) -> List[float]:
     """
