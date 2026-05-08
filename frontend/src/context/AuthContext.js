@@ -26,7 +26,7 @@ export function AuthProvider({ children }) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     localStorage.setItem('nexora_token', token);
 
-    let role = 'member'; // default for demo to show admin panel
+    let role = 'admin'; // default for demo to show admin panel
     let plan = 'pro';
     let name = userEmail;
     try {

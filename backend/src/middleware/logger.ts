@@ -20,7 +20,7 @@ export async function logger (
 				[
 					sessionId,
 					userId,
-					req.path,
+					req.originalUrl.split('?')[0],
 					req.method,
 					score ? parseInt(score) : null,
 					res.statusCode < 400 

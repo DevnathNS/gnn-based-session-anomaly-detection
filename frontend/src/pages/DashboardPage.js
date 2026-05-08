@@ -131,7 +131,7 @@ useEffect(() => {
         </div>
 
 
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 24 }}>
           <div style={card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: 'var(--text)' }}>Recent Requests</h2>
@@ -163,27 +163,7 @@ useEffect(() => {
             </div>
           </div>
 	  
-          {/* Activity feed */}
-          <div style={card}>
-            <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: 'var(--text)', marginBottom: 20 }}>Recent Activity</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {[
-                { icon: '✅', text: 'Deployment succeeded', time: '2 min ago', color: 'var(--green)' },
-                { icon: '📊', text: 'Weekly report generated', time: '1 hr ago', color: 'var(--accent)' },
-                { icon: '🔔', text: 'Alert threshold updated', time: '3 hr ago', color: 'var(--yellow)' },
-                { icon: '🔌', text: 'Kafka connector synced', time: '5 hr ago', color: 'var(--teal)' },
-                { icon: '👤', text: 'Profile settings saved', time: '1 day ago', color: 'var(--text2)' },
-              ].map((a, i) => (
-                <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  <div style={{ fontSize: 16, marginTop: 2 }}>{a.icon}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{a.text}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{a.time}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+
         </div>
         
         {/* Graph Viewer*/}

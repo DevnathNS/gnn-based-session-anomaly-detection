@@ -75,7 +75,8 @@ def score(signals: Signals):
     gnn_result = gnn_score(signals.graph or {'nodes': [], 'edges': []})
     gnn_s = gnn_result['gnn_score']
     
-    final = round(0.4 * rule_score + 0.6 * gnn_s)
+    final = rule_score  # use rule-only until GNN is trained
+    # final = round(0.4 * rule_score + 0.6 * gnn_s)  # re-enable later
     
     return {
         'final_score': max(0, min(100, final)),

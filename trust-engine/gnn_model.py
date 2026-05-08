@@ -9,7 +9,7 @@ from typing import Dict, Any, List
 METHOD_MAP = {'GET': 0, 'POST': 1, 'PUT': 2, 'DELETE': 3}
 
 class GraphSAGE(torch.nn.Module):
-    def __init__(self, in_channels=5, hidden_1=64, hidden_2=32, out_channels=16):
+    def __init__(self, in_channels=4, hidden_1=64, hidden_2=32, out_channels=16):
         super(GraphSAGE, self).__init__()
         self.conv1 = SAGEConv(in_channels, hidden_1)
         self.conv2 = SAGEConv(hidden_1, hidden_2)
