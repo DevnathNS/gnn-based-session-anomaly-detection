@@ -95,6 +95,11 @@ export async function updateSessionGraph(req: Request, sessionId: string) {
  * Usage:
  *   app.use('/api/*', authMiddleware, sessionTrackerMiddleware);
  */
+ 
+ const IGNORED_ROUTES = [
+ 	'/api/session/stats',
+ 	'/api/session/graph'
+ ]
 export async function sessionTrackerMiddleware(
   req: Request,
   res: Response,
@@ -107,7 +112,7 @@ export async function sessionTrackerMiddleware(
     if (req.path.startsWith('/public/')) {
       return next();
     }
-
+    
     // 1. Get sessionId (set by auth middleware)
     const sessionId = req.sessionId;
     if (!sessionId) {
@@ -125,7 +130,11 @@ export async function sessionTrackerMiddleware(
     const userAgent = req.headers['user-agent'] || 'unknown';
     const device = req.headers['x-device-fingerprint'] as string | undefined;
     const timestamp = Date.now();
-
+    
+	if (IGNORED_ROUTES.includes(endpoint)) {
+			return next();
+	}
+		
     // 3. Create request record
     const requestRecord: SessionRequest = {
       endpoint,

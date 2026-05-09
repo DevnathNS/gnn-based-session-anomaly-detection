@@ -194,6 +194,7 @@ export async function initializeDatabase(): Promise<void> {
     await db.query(`
       CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)
     `);
+    
 	
 	 await pool.query(`
       CREATE TABLE IF NOT EXISTS session_graphs (
