@@ -39,6 +39,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     if (req.path.startsWith('/public/')) {
       return next();
     }
+    
 
     // 1. Get token from Authorization header
     // Expected format: "Bearer eyJhbGciOiJIUzI1NiIs..."

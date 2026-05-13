@@ -1,5 +1,3 @@
-// frontend/src/utils/api.ts
-
 import axios from "axios";
 
 const getDeviceFingerprint = () => {
@@ -22,9 +20,6 @@ headers: {
 });
 
 
-
-
-// ✅ ALWAYS attach latest token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("nexora_token");
@@ -36,15 +31,12 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ✅ optional: debug responses (helps you now)
 api.interceptors.response.use(
   (response) => {
-    // Keep your original success logs!
     console.log("API RESPONSE:", response.config.url, response.data);
     return response;
   },
   (error) => {
-    // Keep your original error logs!
     console.error(
       "API ERROR:",
       error.response?.status,
@@ -54,7 +46,6 @@ api.interceptors.response.use(
     const status = error.response?.status;
     const data = error.response?.data;
 
-    // ✅ Add the new security enforcement logic:
     if (status === 401 && data?.error === 'Step-up authentication required') {
        window.dispatchEvent(new CustomEvent('step-up-required', { detail: data }));
        alert(`SECURITY ALERT: Your trust score dropped to ${data.currentScore}. You must verify your identity to access restricted features.`);

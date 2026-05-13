@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-
+import api from '../utils/api'
 const S = {
   page: { paddingTop: 72, overflow: 'hidden' },
 
@@ -189,6 +189,9 @@ const testimonials = [
 export default function HomePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+	useEffect(() => {
+		api.get('/api/public/home-view').catch(() => {});
+	},[]);
 
   return (
     <div style={S.page}>

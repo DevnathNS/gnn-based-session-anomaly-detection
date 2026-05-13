@@ -120,7 +120,7 @@ export default function Navbar() {
 
         {/* Nav Links */}
         <div style={styles.links}>
-          {[['/', 'Platform'], ['/news', 'Blog'], ['/pricing', 'Pricing']].map(([path, label]) => (
+          {[['/', 'Platform'], ['/news', 'Blog'], ['/about', 'About'], ['/pricing', 'Pricing']].map(([path, label]) => (
             <Link
               key={path}
               to={path}
@@ -189,6 +189,7 @@ export default function Navbar() {
                       ['/dashboard', '📊', 'Dashboard'],
                       ['/profile', '👤', 'Profile'],
                       ['/settings', '⚙️', 'Settings'],
+                      ['/payments', '👤', 'Payments'],
                     ].map(([path, icon, label]) => (
                       <button
                         key={path}

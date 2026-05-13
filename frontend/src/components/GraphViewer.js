@@ -12,16 +12,16 @@ export default function GraphViewer() {
 			const rawEdges = data.edges || [];
 			if(rawNodes.length > 0) {
 				const normalize = (path) => {
-					if(!path) return String(Math.random());
+					if(!path) return "Unknown";
 					return path.replace(/^\/api/,'').replace(/\$/,'');
 				};
 				
 				const safeNodes = rawNodes.map( n=> {
 					const cleanId = normalize(n.id);
 					return {
-						id: cleanId,
+						id: n.id,
 						name: cleanId,
-						val: n.accessCount || 1,
+						val: Math.max(n.accessCount || 1, 2),
 						color: getColor(n.sensitivity||0)
 						};
 				});
@@ -30,7 +30,7 @@ export default function GraphViewer() {
 				const safeLinks = rawEdges.map(e => ({
 							source: normalize(e.from),
 							target: normalize(e.to),
-							name: e.method || 'NAV'
+							name: `${e.method} (${e.timeDelta}ms)`
 				}))
 				.filter(link => validNodeIds.has(link.source) && validNodeIds.has(link.target));
 				

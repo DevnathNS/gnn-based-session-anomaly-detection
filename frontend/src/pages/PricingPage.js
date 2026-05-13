@@ -1,6 +1,10 @@
-import React from "react";
+import React, {useState, useEffect} from "react";
+import api from '../utils/api';
 
 export default function PricingPage() {
+	useEffect(() => {
+		api.get('/api/public/home-view').catch(() => {});
+	},[]);
   return (
     <div style={{ padding: 24 }}>
       <h1>Pricing Plans</h1>

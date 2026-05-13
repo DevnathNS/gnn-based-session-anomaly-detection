@@ -4,8 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { db, User } from '../db/postgres';
 import { redisClient } from '../db/redis';
 import { createJWT, authMiddleware } from '../middleware/auth';
-import { terminateSession } from '../middleware/sessionTracker';
-
+import { updateTrustScore,terminateSession } from '../middleware/sessionTracker';
+import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
 const router = Router();
 
 /**
@@ -300,6 +300,174 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
       error: 'Request failed',
       message: 'An error occurred',
     });
+  }
+});
+
+router.post('/webauthn/register-options', authMiddleware, async(req,res) => {
+	try {
+		const user = (req as any).user;
+		const userId= user?.userId;
+		const result = await db.query('SELECT email FROM users WHERE id = $1', [userId]);
+    		const userEmail = result.rows[0]?.email;
+
+		
+		const options = await generateRegistrationOptions({
+			rpName: 'Zero Trust System',
+			rpID: 'localhost',
+			userID: Buffer.from(userId.toString()),
+			userName: userEmail,
+			attestationType: 'none',
+			authenticatorSelection: {
+				userVerification: 'preferred',
+				residentKey: 'preferred',
+			},
+		});
+		
+		//Save challege in redis for 5 minutes
+		await redisClient.set(`challenge:${userId}`, options.challenge, 300);
+		res.json(options);
+	} catch (error) {
+		console.error('Registration options error:',error);
+		res.status(500).json({ error: 'Failed to generate registration options' });
+	}
+})
+
+router.post('/webauthn/register-verify', authMiddleware, async(req,res) => {
+	try {
+		const { credential } = req.body;
+		const userId= (req as any).user.userId;
+		const expectedChallenge = await redisClient.get(`challenge:${userId}`);
+		if (!expectedChallenge) {
+		  return res.status(400).json({ error: 'Challenge expired or not found' });
+		}
+
+		const verification = await verifyRegistrationResponse({
+		  response: credential,
+		  expectedChallenge,
+		  expectedOrigin: 'http://localhost:3001', 
+		  expectedRPID: 'localhost',
+		  requireUserVerification: false,
+		});
+
+		if (verification.verified && verification.registrationInfo) {
+		  const { id, publicKey } = verification.registrationInfo.credential;
+
+		  // Save the biometric credential to PostgreSQL
+		  await db.query(`
+		    INSERT INTO webauthn_credentials (user_id, credential_id, public_key, counter)
+		    VALUES ($1, $2, $3, $4)
+		  `, [
+		    userId, 
+		    Buffer.from(id).toString('base64'), 
+		    Buffer.from(publicKey).toString('base64'),
+		    0
+		  ]);
+
+		  // Clean up challenge
+		  await redisClient.del(`challenge:${userId}`);
+
+		  res.json({ success: true });
+		} else {
+		  res.status(400).json({ error: 'Verification failed' });
+		}
+	  } catch (error) {
+		console.error('Registration verify error:', error);
+		res.status(500).json({ error: 'Failed to verify registration' });
+	  }
+});
+
+router.post('/webauthn/step-up-options', authMiddleware, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    
+    const credentials = await db.queryMany(
+      'SELECT credential_id FROM webauthn_credentials WHERE user_id = $1', 
+      [user.userId]
+    );
+
+    if (!credentials || credentials.length === 0) {
+      return res.status(400).json({ error: 'No biometric credentials registered' });
+    }
+
+    const options = await generateAuthenticationOptions({
+      rpID: 'localhost',
+      userVerification: 'preferred',
+      allowCredentials: credentials.map(cred => ({
+        id: Buffer.from(cred.credential_id, 'base64').toString('base64url'),
+        transports: ['internal', 'usb', 'ble', 'nfc'],
+      })),
+    });
+    await redisClient.set(`challenge:${user.userId}`, options.challenge, 300);
+
+    res.json(options);
+  } catch (error) {
+    console.error('Step-up options error:', error);
+    res.status(500).json({ error: 'Failed to generate step-up options' });
+  }
+});
+
+router.post('/webauthn/step-up-verify', authMiddleware, async (req, res) => {
+  try {
+    const { credential } = req.body;
+    const user = (req as any).user;
+    const sessionId = (req as any).sessionId;
+
+    const expectedChallenge = await redisClient.get(`challenge:${user.userId}`);
+    if (!expectedChallenge) {
+      return res.status(400).json({ error: 'Challenge expired' });
+    }
+    
+    let standardizedCredId;
+    try {
+    	standardizedCredId = Buffer.from(credential.id, 'base64url').toString('base64');
+    } catch(e) {
+    	const base64 = credential.id.replace(/-/g, '+').replace(/_/g, '/');
+        const pad = base64.length % 4 === 0 ? '' : '='.repeat(4 - (base64.length % 4));
+        standardizedCredId = base64 + pad;
+    }
+    const savedCred = await db.queryOne(
+      'SELECT public_key, counter FROM webauthn_credentials WHERE user_id = $1 AND credential_id = $2',
+      [user.userId, Buffer.from(credential.id, 'base64').toString('base64')] 
+    );
+
+    if (!savedCred) {
+      return res.status(400).json({ error: 'Credential not recognized' });
+    }
+
+    const verification = await verifyAuthenticationResponse({
+      response: credential,
+      expectedChallenge,
+      expectedOrigin: 'http://localhost:3001',
+      expectedRPID: 'localhost',
+      requireUserVerification: false,
+      credential: {
+        id: credential.id,
+        publicKey: Buffer.from(savedCred.public_key, 'base64'),
+        counter: savedCred.counter,
+      },
+    });
+
+    if (verification.verified) {
+      const currentScoreStr = await redisClient.get(`session:${sessionId}:trust_score`);
+      const currentScore = currentScoreStr ? parseInt(currentScoreStr) : 0;
+      
+      const newScore = Math.min(100, currentScore + 30);
+      
+      await redisClient.set(`session:${sessionId}:trust_score`, newScore.toString(), 86400);
+      await redisClient.del(`challenge:${user.userId}`); // cleanup
+
+      await db.execute(
+        'UPDATE webauthn_credentials SET counter = $1 WHERE credential_id = $2',
+        [verification.authenticationInfo.newCounter, Buffer.from(credential.id, 'base64').toString('base64')]
+      );
+
+      return res.json({ success: true, newScore });
+    } else {
+      return res.status(400).json({ error: 'Verification failed cryptographically' });
+    }
+  } catch (error) {
+    console.error('Step-up verify error:', error);
+    res.status(500).json({ error: 'Verification process failed' });
   }
 });
 

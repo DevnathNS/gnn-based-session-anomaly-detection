@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { redisClient } from '../db/redis';
+import { terminateSession } from './sessionTracker';
 import fs from 'fs';
 import path from 'path';
 import scoringConfig from '../config/scoring-rules.json';
@@ -69,20 +70,14 @@ export async function policyEnforcerMiddleware(
   next: NextFunction
 ) {
   try {
-    // Skip policy enforcement for public endpoints
-    if (req.path.startsWith('/public/')) {
-      return next();
-    }
-
-    // 1. Get sessionId
-    const sessionId = req.sessionId;
-    if (!sessionId) {
-      return res.status(401).json({
-        error: 'Missing session',
-        message: 'Session ID not found',
-      });
-    }
-
+  	const sessionId = req.sessionId;
+  	if(!sessionId) {
+  		return res.status(401).json({
+  			error:'Missing session',
+  			message:'Session ID not found'
+  		});
+  	}
+    
     // 2. Get current trust score from Redis
     const scoreKey = `session:${sessionId}:trust_score`;
     const scoreStr = await redisClient.get(scoreKey);
@@ -92,12 +87,14 @@ export async function policyEnforcerMiddleware(
     // The policy patterns are defined with /api/... but the routes are mounted with it. 
     // Wait, the router is mounted in server.ts as app.use('/api', ...).
     // Let's check req.originalUrl instead of req.path to match /api/...
-    const endpoint = req.originalUrl.split('?')[0]; // use original url and remove query string
+    const endpoint = req.originalUrl.split('?')[0]; 
     const requiredScore = getRequiredScore(endpoint);
 
     // 4. Determine access tier
     const tier = getAccessTier(currentScore);
-
+	if (endpoint.startsWith('/api/auth/webauthn')) {
+		return next();
+	}
     // 5. Log for debugging
     console.log(
       `[POLICY] ${req.method} ${endpoint} | Score: ${currentScore}/${requiredScore} | Tier: ${tier}`
@@ -110,51 +107,78 @@ export async function policyEnforcerMiddleware(
       tier,
       canStepUp: currentScore >= 20,
     };
-
-    // 7. Enforce policy based on score and tier
-    if (currentScore >= requiredScore) {
-      // ✅ Access allowed
-      console.log(`[ALLOW] ${req.method} ${endpoint}`);
-      return next();
-    }
-
-    // ❌ Access denied - determine response type
+		
+	const isPublicEndpoint = 
+    endpoint.startsWith('/api/public') || 
+    endpoint.startsWith('/public') ||
+    endpoint.startsWith('/api/auth/webauthn') || // 🚨 Add this!
+    endpoint === '/api/session/stats' ||
+    endpoint === '/api/session/graph';
 
     if (tier === 'blocked') {
       // Session is too compromised - terminate immediately
-      console.log(`[BLOCK] ${req.method} ${endpoint} - Session blocked`);
+      await terminateSession(sessionId);
+      console.log(`[BLOCK] ${req.method} ${endpoint} - Session terminated`);
       return res.status(403).json({
         error: 'Session terminated',
         message: 'Your session has been terminated due to suspicious activity. Please login again.',
         tier: 'blocked',
         currentScore,
-        requiredScore,
+        requiredScore
       });
     }
-
-    if (currentScore >= 20) {
+    
+      if (tier === 'restricted') {
       // Score is between 20-79 - offer step-up authentication
-      console.log(`[STEP-UP] ${req.method} ${endpoint} - Step-up required`);
+      // console.log(`[STEP-UP] ${req.method} ${endpoint} - Step-up required`);
       return res.status(401).json({
         error: 'Step-up authentication required',
-        message: 'Your trust score is too low for this action. Please verify your identity.',
-        tier: getAccessTier(currentScore),
+        message: 'Your trust score is too low for this action. Step-up authentication required.',
+        tier: 'restricted',
         currentScore,
         requiredScore,
-        deficit: requiredScore - currentScore,
-        stepUpReward: 30,
-        alternatives: getAlternatives(endpoint),
+        requiresStepUp: true
       });
     }
+    
+     if (tier === 'limited') {
+     	if (req.method!='GET' && !isPublicEndpoint) {
+     		return res.status(403).json({
+     			error: 'Write operations restricted at current trust level',
+     			currentScore,
+     			tier: 'limited'
+     		});
+     	}
+     	
+     	const rateStr = await redisClient.get(`session:${sessionId}:rate_limit`);
+     	const rate= rateStr ? parseInt(rateStr) : 0;
+     	if (rate > 50) {
+     		return res.status(429).json({
+     			error: 'Rate limit exceeded',
+     			message: 'Limited tier sessions are restricted to 50 requests per minute'
+     		});
+     	}
+    }
+    
+		if (isPublicEndpoint) {
+     	return next();
+    }
+    
+    // 7. Enforce policy based on score and tier
+    if (currentScore >= requiredScore) {
 
-    // Score < 20 - access denied
-    console.log(`[DENY] ${req.method} ${endpoint} - Score too low`);
+      console.log(`[ALLOW] ${req.method} ${endpoint}`);
+      return next();
+    }
+
+
+    console.log(`[STEP-UP] ${req.method} ${endpoint} - Step-up required`);
     return res.status(403).json({
-      error: 'Access denied',
-      message: 'Your trust score is too low. Please logout and login again.',
-      tier: 'restricted',
-      currentScore,
-      requiredScore,
+      error: 'Insufficient trust score',
+      currentScore: currentScore,
+      requiredScore: requiredScore,
+      canStepUp: currentScore >=20 ,
+     	alternatives: getAlternatives(endpoint)
     });
   } catch (error) {
     console.error('Policy enforcement error:', error);

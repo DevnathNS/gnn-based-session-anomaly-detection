@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
+import WebAuthnRegister from '../components/WebAuthnRegister';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 28, marginBottom: 20 };
 
@@ -31,8 +32,16 @@ export default function SettingsPage() {
 
         <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28, letterSpacing: '-0.02em', color: 'var(--text)', marginBottom: 4 }}>Settings</h1>
         <p style={{ color: 'var(--text2)', fontSize: 15, marginBottom: 32 }}>Manage your account, billing, security, and API keys.</p>
-
+	<div style={{ maxWidth: 860, margin: '0 auto', padding: '40px 32px' }}>
+      
+        <SectionHeader title="Security & Biometrics"/>
+        <p style={{ color: 'var(--text2)', fontSize: '14px' }}>
+          Register your device biometrics to enable seamless identity verification if your trust score drops.
+        </p>
+        <WebAuthnRegister />
         {/* Plan & Billing */}
+       </div>
+      
         <div style={card}>
           <SectionHeader title="Plan & Billing" />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 20, background: 'var(--bg)', borderRadius: 12, marginBottom: 16 }}>

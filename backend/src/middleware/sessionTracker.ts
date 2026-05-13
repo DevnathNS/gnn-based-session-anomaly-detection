@@ -32,6 +32,7 @@ interface SessionGraph {
 }
 
 function getSensitivity(endpoint: string): number {
+  if (endpoint.includes('home-view') || endpoint.includes('pricing-view')) return 0;
   if (endpoint.startsWith('/api/public')) return 0;
   if (endpoint.startsWith('/api/user') || endpoint.startsWith('/user')) return 1;
   if (endpoint.startsWith('/api/admin') || endpoint.startsWith('/admin')) return 2;
@@ -97,8 +98,9 @@ export async function updateSessionGraph(req: Request, sessionId: string) {
  */
  
  const IGNORED_ROUTES = [
- 	'/api/session/stats',
- 	'/api/session/graph'
+ 	'/api/session/graph',
+ 	'/api/auth/webauthn/step-up-options',
+  	'/api/auth/webauthn/step-up-verify'
  ]
 export async function sessionTrackerMiddleware(
   req: Request,
@@ -108,126 +110,96 @@ export async function sessionTrackerMiddleware(
 ) {
   (req as any).signals = {}; 
   try {
-    // Skip session tracking for public endpoints
-    if (req.path.startsWith('/public/')) {
-      return next();
-    }
-    
-    // 1. Get sessionId (set by auth middleware)
-    const sessionId = req.sessionId;
-    if (!sessionId) {
-      return res.status(401).json({
-        error: 'Missing session',
-        message: 'Session ID not found. Auth middleware must run first.',
-      });
+    const endpoint = req.originalUrl.split('?')[0];
+
+    // 1. Escape Hatch: Skip background graph polling immediately
+    if (IGNORED_ROUTES.includes(endpoint)) {
+      return next(); 
     }
 
-    // 2. Extract request metadata
-    // Use originalUrl (strip query string) so stored endpoints match mounted route paths (/api/...)
-    const endpoint = req.originalUrl.split('?')[0];
+    // 2. Escape Hatch: Safely get Session ID. 
+    // If none exists (e.g., an unauthenticated user on the Home page), skip tracking.
+    const sessionId = req.sessionId;
+    if (!sessionId) {
+      return next();
+    }
+
+    // 3. Extract request metadata
     const method = req.method;
     const ip = req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || 'unknown';
     const device = req.headers['x-device-fingerprint'] as string | undefined;
     const timestamp = Date.now();
-    
-	if (IGNORED_ROUTES.includes(endpoint)) {
-			return next();
-	}
-		
-    // 3. Create request record
-    const requestRecord: SessionRequest = {
-      endpoint,
-      method,
-      ip,
-      userAgent,
-      timestamp,
-      device,
-    };
 
-    // 4. Store request in Redis history (max last 100 requests)
-    // Key: session:{sessionId}:history
-    // Structure: List of JSON objects
+    // 4. Create request record
+    const requestRecord = { endpoint, method, ip, userAgent, timestamp, device };
+
+    // 5. Store request in Redis history (max 100)
     const historyKey = `session:${sessionId}:history`;
     await redisClient.lpushJSON(historyKey, requestRecord);
 
-    // Keep only last 100 requests
     const historyLength = await redisClient.lrange(historyKey, 0, -1);
     if (historyLength.length > 100) {
-      // Trim to 100 items
       const client = redisClient.getClient();
       await client.lTrim(historyKey, 0, 99);
     }
+    await redisClient.expire(historyKey, 86400);
 
-    // 5. Expire history after 24 hours of inactivity
-    await redisClient.expire(historyKey, 86400); // 24 hours
-
-    // 6. Increment rate counter (requests per minute)
-    // Key: session:{sessionId}:rate_limit
+    // 6. Rate limit counter
     const rateKey = `session:${sessionId}:rate_limit`;
     const currentRate = await redisClient.incr(rateKey);
-
-    // Reset rate counter every 60 seconds
     if (currentRate === 1) {
-      // First request in this minute window
       await redisClient.expire(rateKey, 60);
     }
-    
-    (req as any).signals = { ...(req as any).signals, high_rate:currentRate > 100, request_rate: currentRate };
-    
-    // We must read the previous tracked last endpoint BEFORE we overwrite it for Graph tracking
+
+    (req as any).signals = { 
+        ...(req as any).signals, 
+        high_rate: currentRate > 100, 
+        request_rate: currentRate 
+    };
+
+    // 7. Track endpoints for the graph edges
     const lastEndpointKey = `session:${sessionId}:last_endpoint`;
     const previousTargetTracking = await redisClient.get(lastEndpointKey);
     (req as any).previousEndpointTracking = previousTargetTracking;
-    
+
     const lastAccessTimeKey = `session:${sessionId}:last_access_time`;
     const previousAccessTimeStr = await redisClient.get(lastAccessTimeKey);
     (req as any).previousAccessTime = previousAccessTimeStr ? parseInt(previousAccessTimeStr) : Date.now();
 
-    // 7. Store last endpoint (for building graph edges)
-    // Key: session:{sessionId}:last_endpoint
-    await redisClient.set(lastEndpointKey, endpoint, 86400); // 24h expiry
+    await redisClient.set(lastEndpointKey, endpoint, 86400);
     await redisClient.set(lastAccessTimeKey, Date.now().toString(), 86400);
-    
-    // 8. Initialize default trust score if session is new
-    // Key: session:{sessionId}:trust_score
+
+    // 8. Initialize default trust score if new session
     const scoreKey = `session:${sessionId}:trust_score`;
     const hasScore = await redisClient.exists(scoreKey);
-
     if (!hasScore) {
-      // New session - initialize with default score
-      await redisClient.set(scoreKey, '90', 86400); // 90 points, 24h expiry
-      console.log(`[SESSION] New session created: ${sessionId}, initial score: 90`);
+      await redisClient.set(scoreKey, '90', 86400);
     }
-    
+
     const hour = new Date().getUTCHours();
-    (req as any).signals = { ...(req as any).signals, is_after_hours: hour < 6 || hour > 22 };
-    
-    // 8.5 Update Dynamic Session Graph 
+    (req as any).signals = { 
+        ...(req as any).signals, 
+        is_after_hours: hour < 6 || hour > 22 
+    };
+
+    // 9. Update the Session Graph! (This will now safely catch Public & Private pages)
     await updateSessionGraph(req, sessionId);
 
-    // 9. Attach rate limit to request for later use
+    // 10. Attach final data for logger
     (req as any).sessionData = {
       sessionId,
       rateLimit: currentRate,
-      trustScore: hasScore
-        ? parseInt(await redisClient.get(scoreKey) || '90')
-        : 90,
+      trustScore: hasScore ? parseInt(await redisClient.get(scoreKey) || '90') : 90,
     };
 
-    // 10. Log for audit
-    const sessionData = (req as any).sessionData;
-    console.log(
-      `[TRACK] ${method} ${endpoint} | Rate: ${sessionData.rateLimit}/min | Score: ${sessionData.trustScore}`
-    );
+    // 🚨 ONLY CALL NEXT() ONCE, RIGHT HERE AT THE END 🚨
+    return next(); 
 
-    // Continue to next middleware
-    next();
   } catch (error) {
     console.error('Session tracking error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Session tracking failed',
-      message: 'An error occurred while tracking the session',
     });
   }
 }

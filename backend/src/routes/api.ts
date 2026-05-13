@@ -288,7 +288,9 @@ router.get('/session/stats', async (req: Request, res:Response) => {
 		});
 	} catch (err) {
 		console.error('Stats error: ',err);
-		res.status(500).json({error: 'Failed to fetch session stats'});
+		if (!res.headersSent) {
+			res.status(500).json({error: 'Failed to fetch session stats'});
+		}
 	}
 });
 
@@ -321,7 +323,9 @@ router.get('/session/graph', async (req: Request, res: Response) => {
         });
     } catch (err) {
         console.error('Graph fetch error:', err);
-        res.status(500).json({ error: 'Failed to fetch session graph' });
+        if (!res.headersSent) {
+        	res.status(500).json({ error: 'Failed to fetch session graph' });
+        }
     }
 });
 

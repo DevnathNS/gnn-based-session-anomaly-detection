@@ -112,7 +112,7 @@ def score(signals: Signals):
 		gnn_result = gnn_score(signals.session_id,signals.graph or {'nodes': [], 'edges': []})
 		gnn_s = gnn_result['gnn_score']    
 
-		final = round(0.4 * rule_score + 0.6 * gnn_s)  
+		final = round(0.6 * rule_score + 0.4 * gnn_s)  
 		latency_ms= (time.time()-start_time)*1000
 		if latency_ms > 250:
 			print(f"[PERF] Slow scoring detected: {latency_ms:.2f}ms for session {signals.session_id}")

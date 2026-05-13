@@ -221,7 +221,24 @@ export async function initializeDatabase(): Promise<void> {
     await db.query(`
       CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id)
     `);
+    
+	await db.query(`
+      CREATE TABLE IF NOT EXISTS webauthn_credentials (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        credential_id TEXT UNIQUE NOT NULL,
+        public_key TEXT NOT NULL,
+        counter INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✓ WebAuthn credentials table ready');
 
+    // Create index for fast credential lookups
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_webauthn_user_id ON webauthn_credentials(user_id)
+    `);
+    
     console.log('✓ Indexes created');
     console.log('✅ Database schema initialized successfully\n');
   } catch (error) {

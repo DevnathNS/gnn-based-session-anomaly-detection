@@ -4,6 +4,7 @@ import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './swagger';
 import apiRouter from './routes/api';
 import authRouter from './routes/auth';
+import authRoutes from './routes/auth';
 import { authMiddleware } from './middleware/auth';
 import { sessionTrackerMiddleware, getSessionHistory, updateTrustScore } from './middleware/sessionTracker';
 import { policyEnforcerMiddleware, getPolicies } from './middleware/policyEnforcer';
@@ -37,7 +38,7 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 // POST /auth/logout - Logout (requires JWT)
 // GET /auth/me - Get current user (requires JWT)
 app.use('/auth', authRouter);
-
+app.use('/auth', authRoutes);
 // Public endpoints - no authentication required
 // These run BEFORE auth middleware, so they don't need a token
 app.use('/api/public', apiRouter);
