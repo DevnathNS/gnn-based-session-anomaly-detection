@@ -167,6 +167,14 @@ router.get('/public/about', (req: Request, res:Response) => {
 	});
 });
 
+router.get('/public/home-view', (req: Request, res: Response) => { 
+  res.json({ endpoint: '/api/public/home-view', data: { success: true }, timestamp: new Date().toISOString() }); 
+});
+
+router.get('/public/pricing-view', (req: Request, res: Response) => { 
+  res.json({ endpoint: '/api/public/pricing-view', data: { success: true }, timestamp: new Date().toISOString() }); 
+});
+
 router.get('/user/profile', async (req: Request, res: Response) => {
   	try {
     		const userId = (req as any).user?.userId; 

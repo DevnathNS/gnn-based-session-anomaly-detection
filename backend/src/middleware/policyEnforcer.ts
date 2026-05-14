@@ -70,13 +70,23 @@ export async function policyEnforcerMiddleware(
   next: NextFunction
 ) {
   try {
-  	const sessionId = req.sessionId;
+    const endpoint = req.originalUrl.split('?')[0];
+    const isPublicEndpoint = 
+		endpoint.startsWith('/api/public') || 
+		endpoint.startsWith('/public') ||
+		endpoint.startsWith('/api/auth/webauthn') || // 🚨 Add this!
+		endpoint === '/api/session/stats' ||
+		endpoint === '/api/session/graph';
+ 	if (isPublicEndpoint) {
+     	return next();
+    }
+    const sessionId = req.sessionId;
   	if(!sessionId) {
   		return res.status(401).json({
   			error:'Missing session',
   			message:'Session ID not found'
   		});
-  	}
+    }
     
     // 2. Get current trust score from Redis
     const scoreKey = `session:${sessionId}:trust_score`;
@@ -87,7 +97,6 @@ export async function policyEnforcerMiddleware(
     // The policy patterns are defined with /api/... but the routes are mounted with it. 
     // Wait, the router is mounted in server.ts as app.use('/api', ...).
     // Let's check req.originalUrl instead of req.path to match /api/...
-    const endpoint = req.originalUrl.split('?')[0]; 
     const requiredScore = getRequiredScore(endpoint);
 
     // 4. Determine access tier
@@ -108,13 +117,7 @@ export async function policyEnforcerMiddleware(
       canStepUp: currentScore >= 20,
     };
 		
-	const isPublicEndpoint = 
-    endpoint.startsWith('/api/public') || 
-    endpoint.startsWith('/public') ||
-    endpoint.startsWith('/api/auth/webauthn') || // 🚨 Add this!
-    endpoint === '/api/session/stats' ||
-    endpoint === '/api/session/graph';
-
+	
     if (tier === 'blocked') {
       // Session is too compromised - terminate immediately
       await terminateSession(sessionId);
@@ -160,10 +163,6 @@ export async function policyEnforcerMiddleware(
      	}
     }
     
-		if (isPublicEndpoint) {
-     	return next();
-    }
-    
     // 7. Enforce policy based on score and tier
     if (currentScore >= requiredScore) {
 
@@ -175,10 +174,12 @@ export async function policyEnforcerMiddleware(
     console.log(`[STEP-UP] ${req.method} ${endpoint} - Step-up required`);
     return res.status(403).json({
       error: 'Insufficient trust score',
+      message: `Endpoint requires a trust score of ${requiredScore}, but you only have ${currentScore}. Step-up authentication required.`,
       currentScore: currentScore,
       requiredScore: requiredScore,
       canStepUp: currentScore >=20 ,
-     	alternatives: getAlternatives(endpoint)
+      requiresStepUp: currentScore >= 20,
+      alternatives: getAlternatives(endpoint)
     });
   } catch (error) {
     console.error('Policy enforcement error:', error);

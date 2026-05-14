@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import WebAuthnRegister from '../components/WebAuthnRegister';
+import TOTPSetup from '../components/TOTPSetup';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 28, marginBottom: 20 };
 
@@ -39,7 +40,12 @@ export default function SettingsPage() {
           Register your device biometrics to enable seamless identity verification if your trust score drops.
         </p>
         <WebAuthnRegister />
-        {/* Plan & Billing */}
+        <div style={{ margin: '24px 0', borderBottom: '1px solid var(--border)' }} />
+        
+        <p style={{ color: 'var(--text2)', fontSize: '14px' }}>
+          No fingerprint sensor? Set up an Authenticator App as a secure fallback.
+        </p>
+        <TOTPSetup />
        </div>
       
         <div style={card}>

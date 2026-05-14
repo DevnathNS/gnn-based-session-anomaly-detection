@@ -9,6 +9,11 @@ from typing import Dict, Any, List
 METHOD_MAP = {'GET': 0, 'POST': 1, 'PUT': 2, 'DELETE': 3}
 
 class GraphSAGE(torch.nn.Module):
+    """
+    3-layer GraphSAGE for session anomaly detection.
+    Input: Graph with node features
+    Output: Binary classification (0=benign, 1=attack)
+    """
     def __init__(self, in_channels=4, hidden_1=64, hidden_2=32, out_channels=16):
         super(GraphSAGE, self).__init__()
         self.conv1 = SAGEConv(in_channels, hidden_1)
@@ -17,23 +22,28 @@ class GraphSAGE(torch.nn.Module):
         self.classifier = torch.nn.Linear(out_channels, 1)
 
     def forward(self, x, edge_index):
+        # Layer 1
         x = self.conv1(x, edge_index)
         x = F.relu(x)
-        x = F.dropout(x, p=0.5, training=self.training)
+        x = F.dropout(x, p=0.6, training=self.training)
         
+        # Layer 2
         x = self.conv2(x, edge_index)
         x = F.relu(x)
-        x = F.dropout(x, p=0.5, training=self.training)
+        x = F.dropout(x, p=0.6, training=self.training)
         
+        # Layer 3
         x = self.conv3(x, edge_index)
         x = F.relu(x)
         
-        # Pool graph level representations (e.g. mean pool)
-        # Simplified for now (e.g., using mean of node embeddings)
-        x = torch.mean(x, dim=0)
-        
-        out = self.classifier(x)
-        return torch.sigmoid(out)
+        if x.size(0) > 0:
+            x = torch.max(x, dim=0)[0] 
+        else:
+            x = torch.zeros(x.size(1), device=x.device)
+            
+        # Classification
+        x = self.classifier(x)
+        return torch.sigmoid(x)
 
 def extract_node_features(node: Dict[str, Any]) -> List[float]:
     """

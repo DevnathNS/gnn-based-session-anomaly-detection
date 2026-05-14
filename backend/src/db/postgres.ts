@@ -131,6 +131,8 @@ export async function initializeDatabase(): Promise<void> {
       )
     `);
 
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(255)`);
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT false`);
     console.log('✓ Users table ready');
 
     // Create sessions table (for audit trail)

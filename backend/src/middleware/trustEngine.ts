@@ -3,16 +3,22 @@ import axios from 'axios';
 import { redisClient } from '../db/redis';
 
 const TRUST_ENGINE_URL = 'http://localhost:8000';
-
+const IGNORED_ROUTES = [
+  '/api/session/stats',
+  '/api/session/graph',
+  '/api/auth/webauthn/step-up-options',
+  '/api/auth/webauthn/step-up-verify'
+];
 export async function trustEngineMiddleware(req: Request, res: Response, next: NextFunction) {
   try {
+  	const endpoint = req.originalUrl.split('?')[0];
+  	if (IGNORED_ROUTES.includes(endpoint)) {
+  			return next();
+  	}
+  	
     const sessionId = req.sessionId;
     if (!sessionId) return next();
-
-    // Skip tracking for public endpoints
-    if (req.path.startsWith('/public/')) {
-        return next();
-    }
+   
 
     // Get signals gathered from previous middlewares
     const signals = (req as any).signals || {};

@@ -31,9 +31,10 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+let lastStepUpTime = 0;
+
 api.interceptors.response.use(
   (response) => {
-    console.log("API RESPONSE:", response.config.url, response.data);
     return response;
   },
   (error) => {
@@ -46,17 +47,24 @@ api.interceptors.response.use(
     const status = error.response?.status;
     const data = error.response?.data;
 
-    if (status === 401 && data?.error === 'Step-up authentication required') {
-       window.dispatchEvent(new CustomEvent('step-up-required', { detail: data }));
-       alert(`SECURITY ALERT: Your trust score dropped to ${data.currentScore}. You must verify your identity to access restricted features.`);
-    } 
-    else if (status === 403 && data?.tier === 'blocked') {
+    if (status === 403 && data?.tier === 'blocked') {
        alert("Session terminated due to suspicious activity.");
        localStorage.removeItem('nexora_token');
        localStorage.removeItem('nexora_user');
        window.location.href = '/login';
+       return Promise.reject(error);
     }
-
+    const needsStepUp = data?.requiresStepUp || data?.tier === 'restricted' || data?.message?.toLowerCase().includes('step-up');
+    
+    if ((status === 401 || status === 403 )&& needsStepUp) {
+    	const now= Date.now();
+    	if(now-lastStepUpTime > 2000) {
+    		lastStepUpTime= now;
+    		window.dispatchEvent(new CustomEvent('step-up-required', { 
+          detail: { message: data?.message || 'Trust score too low. Identity verification required.' }
+        }));
+      }
+    }
     return Promise.reject(error);
   }
 );

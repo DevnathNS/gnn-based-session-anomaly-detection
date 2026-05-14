@@ -35,17 +35,16 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
  */
 export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
   try {
-    // Skip authentication for public endpoints
-    if (req.path.startsWith('/public/')) {
-      return next();
-    }
-    
 
     // 1. Get token from Authorization header
     // Expected format: "Bearer eyJhbGciOiJIUzI1NiIs..."
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
+    	if (req.path.startsWith('/public/')) {
+		    return next();
+		  }
+		  
       return res.status(401).json({
         error: 'Missing authorization header',
         message: 'Please provide token in Authorization header',
@@ -65,7 +64,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
     // 3. Verify and decode token
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
-
+    
     // Check if session was terminated in Redis
     if (decoded.sessionId) {
       const { redisClient } = await import('../db/redis');
@@ -86,29 +85,12 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     // 5. Continue to next middleware/route
     next();
   } catch (error) {
-    // Handle JWT errors
-    if (error instanceof jwt.TokenExpiredError) {
-      return res.status(401).json({
-        error: 'Token expired',
-        message: 'Please login again',
-      });
+   if (req.path.startsWith('/public/') || req.originalUrl.startsWith('/api/public/')) {
+        return next(); // Let expired tokens still view public pages
     }
-
-    if (error instanceof jwt.JsonWebTokenError) {
-      return res.status(401).json({
-        error: 'Invalid token',
-        message: 'Token is malformed or invalid',
-      });
-    }
-
-    // Unknown error
-    return res.status(500).json({
-      error: 'Authentication error',
-      message: 'An unexpected error occurred',
-    });
+    return res.status(401).json({ error: 'Invalid token', message: 'Token is malformed or expired' });
   }
 }
-
 /**
  * Create JWT token
  * 

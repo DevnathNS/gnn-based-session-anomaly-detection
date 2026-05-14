@@ -1,30 +1,10 @@
 import React, { useState } from 'react';
 import api from '../utils/api';
-import { startAuthentication } from '@simplewebauthn/browser';
 
 export default function PaymentsPage() {
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState('');
-  const [status, setStatus] = useState(null); // { type: 'success' | 'error', msg: string, needsAction: boolean }
-
-  const triggerStepUpAuth = async () => {
-    setStatus({ type: 'error', msg: 'Initiating secure identity verification...' });
-    try {
-      const optionsRes = await api.post('auth/webauthn/step-up-options');
-      const credential = await startAuthentication({ optionsJSON: optionsRes.data });
-      const verifyRes = await api.post('auth/webauthn/step-up-verify', { credential });
-      
-      if (verifyRes.data.success) {
-        setStatus({ 
-          type: 'success', 
-          msg: `✅ Identity Verified! Trust Score restored to ${verifyRes.data.newScore}. You may now re-try your transfer.` 
-        });
-      }
-    } catch (err) {
-      console.error(err);
-      setStatus({ type: 'error', msg: '❌ Biometric verification failed or was canceled.' });
-    }
-  };
+  const [status, setStatus] = useState(null); 
 
   const handleTransfer = async (e) => {
     e.preventDefault();
@@ -45,22 +25,12 @@ export default function PaymentsPage() {
       
     } catch (err) {
       const errorPayload = err.response?.data;
-      
-      if (errorPayload?.requiresStepUp) {
-        setStatus({ 
-          type: 'error', 
-          msg: 'Trust score too low! Step-up authentication required.',
-          needsAction: true 
-        });
-      } else {
-        setStatus({ 
+      setStatus({ 
           type: 'error',
           msg: errorPayload?.error || errorPayload?.message || 'Transfer blocked by security policy'
         });
-      }
     }
-  }; // <--- THIS WAS THE MISSING BRACE!
-
+  };
   return (
     <div style={{ padding: '40px 20px', maxWidth: 600, margin: '0 auto', color: 'var(--text)' }}>
       <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 32, marginBottom: 8 }}>Wire Transfer</h1>
@@ -110,16 +80,6 @@ export default function PaymentsPage() {
             color: status.type === 'error' ? 'var(--red)' : 'var(--green)'
           }}>
             <p>{status.msg}</p>
-            
-            {/* THE STEP UP BUTTON */}
-            {status.needsAction && (
-              <button 
-                type="button"
-                onClick={triggerStepUpAuth}
-                style={{ marginTop: 12, padding: '8px 16px', background: 'var(--red)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                Use Virtual Key to Verify Identity
-              </button>
             )}
           </div>
         )}

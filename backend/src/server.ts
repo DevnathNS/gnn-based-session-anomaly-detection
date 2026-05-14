@@ -41,7 +41,6 @@ app.use('/auth', authRouter);
 app.use('/auth', authRoutes);
 // Public endpoints - no authentication required
 // These run BEFORE auth middleware, so they don't need a token
-app.use('/api/public', apiRouter);
 
 // Protected endpoints - require authentication
 // Middleware chain:

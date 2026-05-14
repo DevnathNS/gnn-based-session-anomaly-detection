@@ -52,20 +52,22 @@ class GraphSAGE(torch.nn.Module):
         # Layer 1
         x = self.conv1(x, edge_index)
         x = F.relu(x)
-        x = F.dropout(x, p=0.5, training=self.training)
+        x = F.dropout(x, p=0.6, training=self.training)
         
         # Layer 2
         x = self.conv2(x, edge_index)
         x = F.relu(x)
-        x = F.dropout(x, p=0.5, training=self.training)
+        x = F.dropout(x, p=0.6, training=self.training)
         
         # Layer 3
         x = self.conv3(x, edge_index)
         x = F.relu(x)
         
-        # Global pooling (mean of all node embeddings)
-        x = torch.mean(x, dim=0)
-        
+        if x.size(0) > 0:
+            x = torch.max(x, dim=0)[0] 
+        else:
+            x = torch.zeros(x.size(1), device=x.device)
+            
         # Classification
         x = self.classifier(x)
         return torch.sigmoid(x)
@@ -255,24 +257,27 @@ def train_model(epochs: int = 100):
     attack_count = sum(1 for d in dataset if d.y.item() == 1)
     print(f"  Benign: {benign_count} | Attack: {attack_count}")
     
+    weight_attack= benign_count/max(attack_count,1)
+    weight_tensor= torch.tensor([weight_attack], dtype=torch.float).to(device)
+    
     # Create model
     model = GraphSAGE(in_channels=4, hidden_1=64, hidden_2=32, out_channels=16).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
     criterion = torch.nn.BCELoss()
     
     print("\n[TRAINING] Starting training...")
     print("="*70)
     
-    best_val_acc = 0
-    patience = 10
+    best_val_f1 = 0
+    patience = 15
     patience_counter = 0
     
     for epoch in range(epochs):
         train_loss = train_epoch(model, train_data, optimizer, criterion)
-        val_acc = evaluate(model, val_data)
+        val_f1 = evaluate(model, val_data)
         
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
+        if val_f1 > best_val_f1:
+            best_val_f1 = val_f1
             patience_counter = 0
             # Save best model
             torch.save(model.state_dict(), 'graphsage_model_best.pth')
@@ -280,24 +285,19 @@ def train_model(epochs: int = 100):
             patience_counter += 1
         
         if (epoch + 1) % 10 == 0:
-            print(f"Epoch {epoch+1:3d} | Loss: {train_loss:.4f} | Val Acc: {val_acc:.4f}")
+            print(f"Epoch {epoch+1:3d} | Loss: {train_loss:.4f} | Val Acc: {val_f1:.4f}")
         
         # Early stopping
-        if patience_counter >= patience:
+        if patience_counter >= patience and epoch>20:
             print(f"Early stopping at epoch {epoch+1}")
             break
-        
-        # Stop if target accuracy reached
-        if val_acc >= 0.90:
-            print(f"Target accuracy 90% reached at epoch {epoch+1}!")
-            torch.save(model.state_dict(), 'graphsage_model_best.pth')
-            break
+       
     
     print("="*70)
     
     # Test evaluation
     print("\n[EVALUATION] Testing on test set...")
-    test_acc = evaluate(model, test_data)
+    test_f1 = evaluate(model, test_data)
     y_true, y_pred = get_predictions(model, test_data)
     
     accuracy = accuracy_score(y_true, y_pred)

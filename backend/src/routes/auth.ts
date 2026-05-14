@@ -6,6 +6,9 @@ import { redisClient } from '../db/redis';
 import { createJWT, authMiddleware } from '../middleware/auth';
 import { updateTrustScore,terminateSession } from '../middleware/sessionTracker';
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
+import { generateSecret, verify, generateURI } from 'otplib';
+import QRCode from 'qrcode';
+import jwt from 'jsonwebtoken';
 const router = Router();
 
 /**
@@ -150,6 +153,20 @@ router.post('/login', async (req: Request, res: Response) => {
         error: 'Invalid credentials',
         message: 'Email or password is incorrect',
       });
+    }
+    
+    const mfaCheck = await db.queryOne('SELECT totp_enabled FROM users WHERE id = $1', [user.id]);
+    if (mfaCheck?.totp_enabled) {
+    	const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
+        const mfaToken = jwt.sign({ pendingMfaUserId: user.id }, JWT_SECRET, { expiresIn: '5m' });
+    	console.log(`[AUTH] MFA required for user: ${user.email}`);
+        
+        return res.status(200).json({
+            success: true,
+            requiresMFA: true,
+            mfaToken,
+            message: 'Please enter your 6-digit Authenticator code',
+        });
     }
 
     // 4. Create session ID
@@ -468,6 +485,118 @@ router.post('/webauthn/step-up-verify', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Step-up verify error:', error);
     res.status(500).json({ error: 'Verification process failed' });
+  }
+});
+
+router.post('/totp/setup', authMiddleware, async (req, res) => {
+	try {
+		const userId= (req as any).user.userId;
+		const user = await db.queryOne('SELECT email FROM users WHERE id = $1', [userId]);
+		const secret = generateSecret();
+		
+		const otpauthUrl = generateURI({
+		  issuer: 'ZeroTrust System',
+		  label: user.email,
+		  secret
+		});
+		const qrCodeUrl = await QRCode.toDataURL(otpauthUrl);
+		
+		await db.execute(
+			'UPDATE users SET totp_secret = $1 WHERE id = $2', [secret, userId]
+		);
+		
+		res.json({ secret, qrCodeUrl });
+	} catch (error) {
+		console.error('TOTP setup error:', error);
+		res.status(500).json({ error: 'Failed to generate TOTP setup' });
+	}
+});
+
+router.post('/totp/verify-setup', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { token } = req.body;
+
+    const user = await db.queryOne('SELECT totp_secret FROM users WHERE id = $1', [userId]);
+
+    if (!user || !user.totp_secret) {
+      return res.status(400).json({ error: 'TOTP setup not initiated' });
+    }
+
+    const verification = await verify({ token, secret: user.totp_secret });
+
+    if (verification.valid) {
+      await db.execute('UPDATE users SET totp_enabled = true WHERE id = $1', [userId]);
+      res.json({ success: true, message: 'TOTP Authenticator enabled successfully!' });
+    } else {
+      res.status(400).json({ error: 'Invalid verification code. Try again.' });
+    }
+  } catch (error) {
+    console.error('TOTP verify setup error:', error);
+    res.status(500).json({ error: 'Failed to verify TOTP setup' });
+  }
+});
+ 
+router.post('/login/mfa', async (req: Request, res: Response) => {
+  try {
+    const { mfaToken, code } = req.body;
+    if (!mfaToken || !code) {
+      return res.status(400).json({ error: 'Missing token or code' });
+    }
+
+    const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
+    
+    const decoded = jwt.verify(mfaToken, JWT_SECRET) as any;
+    if (!decoded.pendingMfaUserId) {
+      return res.status(400).json({ error: 'Invalid token' });
+    }
+
+    const user = await db.queryOne('SELECT id, email, totp_secret FROM users WHERE id = $1', [decoded.pendingMfaUserId]);
+    
+    if (!user || !user.totp_secret) {
+      return res.status(400).json({ error: 'MFA not configured for this user' });
+    }
+
+	const isValid = verify({ token: code, secret: user.totp_secret });
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid 6-digit code. Please try again.' });
+    }
+
+    const sessionId = uuidv4();
+    let initialTrustScore = 90;
+    
+    const historicalTrustScoreParts = await redisClient.get(`user:${user.id}:historical_trust_score`);
+    if (historicalTrustScoreParts) {
+       const historicalScoreMatch = historicalTrustScoreParts.match(/^\s*(-?\d+(\.\d+)?)\s*$/);
+       if(historicalScoreMatch && !Number.isNaN(Number(historicalScoreMatch[1]))) {
+          initialTrustScore = Number(historicalScoreMatch[1]);
+       }
+    }
+
+    await db.execute(
+      'INSERT INTO sessions (user_id, session_id, trust_score) VALUES ($1, $2, $3)',
+      [user.id, sessionId, initialTrustScore]
+    );
+
+    await redisClient.set(`session:${sessionId}:trust_score`, String(initialTrustScore), 86400);
+    await redisClient.set(`session:${sessionId}:user_id`, user.id.toString(), 86400);
+
+    const token = createJWT({ userId: user.id, sessionId });
+
+    console.log(`[AUTH] User logged in securely with MFA: ${user.email} (Session: ${sessionId})`);
+
+    res.status(200).json({
+      success: true,
+      token,
+      userId: user.id,
+      email: user.email,
+      sessionId,
+      trustScore: initialTrustScore,
+      message: 'MFA Verified. Login successful',
+    });
+  } catch (error) {
+    console.error('MFA Login error:', error);
+    res.status(401).json({ error: 'MFA failed', message: 'Invalid or expired MFA session' });
   }
 });
 

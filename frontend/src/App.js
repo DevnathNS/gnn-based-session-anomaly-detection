@@ -15,6 +15,7 @@ import AdminPage from './pages/AdminPage';
 import NotFoundPage from './pages/NotFoundPage';
 import AboutPage from './pages/AboutPage';
 import PaymentsPage from './pages/PaymentsPage';
+import GlobalStepUpModel from './components/GlobalStepUpModal';
 
 function ProtectedRoute({ children, requiredRole, requiredPlan }) {
   const { user } = useAuth();
@@ -74,6 +75,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
+      <GlobalStepUpModel />
       <AppRoutes />
     </AuthProvider>
   );
