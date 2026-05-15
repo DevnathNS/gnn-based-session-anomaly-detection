@@ -1,6 +1,7 @@
 import {Router, Request, Response} from 'express';
 import { redisClient } from '../db/redis';
 import { db } from '../db/postgres';
+import { terminateSession } from '../middleware/sessionTracker';
 
 const router = Router();
 
@@ -334,6 +335,97 @@ router.get('/session/graph', async (req: Request, res: Response) => {
         if (!res.headersSent) {
         	res.status(500).json({ error: 'Failed to fetch session graph' });
         }
+    }
+});
+
+/**
+ * @swagger
+ * /api/admin/sessions:
+ *    get:
+ *       summary: List all active sessions with trust scores
+ *       tags: [Admin]
+ *       responses:
+ *          200:
+ *             description: Array of active sessions
+ */
+router.get('/admin/sessions', async (req: Request, res: Response) => {
+    try {
+        const sessions = await db.queryMany(`
+            SELECT s.session_id, s.user_id, s.trust_score as db_score,
+                   s.created_at, s.ended_at,
+                   u.email
+            FROM sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.ended_at IS NULL
+            ORDER BY s.created_at DESC
+            LIMIT 50
+        `);
+
+        // Enrich with live Redis scores
+        const enriched = await Promise.all(sessions.map(async (s: any) => {
+            const liveScore = await redisClient.get(`session:${s.session_id}:trust_score`);
+            const rateStr = await redisClient.get(`session:${s.session_id}:rate_limit`);
+            return {
+                sessionId: s.session_id,
+                userId: s.user_id,
+                email: s.email,
+                trustScore: liveScore ? parseInt(liveScore) : s.db_score,
+                requestRate: rateStr ? parseInt(rateStr) : 0,
+                startedAt: s.created_at,
+                isActive: !!liveScore
+            };
+        }));
+
+        res.json({
+            endpoint: '/api/admin/sessions',
+            data: { sessions: enriched },
+            timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+        console.error('Admin sessions fetch error:', err);
+        res.status(500).json({ error: 'Failed to fetch sessions' });
+    }
+});
+
+/**
+ * @swagger
+ * /api/admin/sessions/{id}/terminate:
+ *    post:
+ *       summary: Terminate a session by session ID
+ *       tags: [Admin]
+ *       parameters:
+ *         - in: path
+ *           name: id
+ *           required: true
+ *           schema:
+ *             type: string
+ *       responses:
+ *          200:
+ *             description: Session terminated
+ */
+router.post('/admin/sessions/:id/terminate', async (req: Request, res: Response) => {
+    try {
+        const targetSessionId = req.params.id;
+
+        // 1. Terminate in Redis
+        await terminateSession(targetSessionId);
+
+        // 2. Mark ended in PostgreSQL
+        await db.execute(
+            'UPDATE sessions SET ended_at = CURRENT_TIMESTAMP WHERE session_id = $1',
+            [targetSessionId]
+        );
+
+        console.log(`[ADMIN] Session ${targetSessionId} terminated by admin`);
+
+        res.json({
+            endpoint: `/api/admin/sessions/${targetSessionId}/terminate`,
+            data: { terminated: true, sessionId: targetSessionId },
+            timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+        console.error('Admin session terminate error:', err);
+        res.status(500).json({ error: 'Failed to terminate session' });
     }
 });
 

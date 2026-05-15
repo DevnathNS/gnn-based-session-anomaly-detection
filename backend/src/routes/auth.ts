@@ -480,11 +480,17 @@ router.post('/webauthn/step-up-verify', authMiddleware, async (req, res) => {
 
       return res.json({ success: true, newScore });
     } else {
-      return res.status(400).json({ error: 'Verification failed cryptographically' });
+      // Failed biometric = strong evidence of compromised session → terminate
+      console.log(`[SECURITY] Step-up verification FAILED for session ${sessionId} — terminating session`);
+      await terminateSession(sessionId);
+      return res.status(403).json({ error: 'Verification failed. Session terminated for security.' });
     }
   } catch (error) {
     console.error('Step-up verify error:', error);
-    res.status(500).json({ error: 'Verification process failed' });
+    // On unexpected error during verification, also terminate as precaution
+    const sessionId = (req as any).sessionId;
+    if (sessionId) await terminateSession(sessionId);
+    res.status(500).json({ error: 'Verification process failed. Session terminated.' });
   }
 });
 
