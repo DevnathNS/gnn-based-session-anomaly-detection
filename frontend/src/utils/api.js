@@ -47,7 +47,7 @@ api.interceptors.response.use(
     const status = error.response?.status;
     const data = error.response?.data;
 
-    if (status === 403 && data?.tier === 'blocked') {
+    if ((status === 403 && data?.tier === 'blocked') || (status === 401 && data?.error === 'Session terminated due to suspicious activity.')) {
        alert("Session terminated due to suspicious activity.");
        localStorage.removeItem('nexora_token');
        localStorage.removeItem('nexora_user');

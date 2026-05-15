@@ -8,22 +8,22 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   const [step, setStep] = useState('credentials'); // 'credentials' | 'mfa'
   const [mfaToken, setMfaToken] = useState('');
   const [mfaCode, setMfaCode] = useState('');
-  
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
       const user = await login(form.email, form.password);
-      if (result && result.requiresMFA) {
-      	setMfaToken(result.mfaToken);
-      	setStep('mfa');
+      if (user && user.requiresMFA) {
+        setMfaToken(user.mfaToken);
+        setStep('mfa');
       } else {
-      	navigate('/dashboard');
+        navigate('/dashboard');
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');
@@ -31,21 +31,21 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
-  
+
   const handleMfaSubmit = async (e) => {
-    e.preventDefault(); 
-    setError(''); 
+    e.preventDefault();
+    setError('');
     setLoading(true);
     try {
       await verifyMfaLogin(mfaToken, mfaCode);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Invalid 6-digit code.'); 
+      setError(err.response?.data?.error || err.response?.data?.message || 'Invalid 6-digit code.');
     } finally {
       setLoading(false);
     }
   }
-  
+
   const fillDemo = (email) => setForm({ email, password: 'password123' });
   return (
     <div style={{
@@ -192,16 +192,16 @@ export default function LoginPage() {
           {step === 'mfa' && (
             <form onSubmit={handleMfaSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'center' }}>
               <div>
-                <input 
-                  type="text" 
-                  required 
+                <input
+                  type="text"
+                  required
                   maxLength="6"
-                  placeholder="000 000" 
-                  value={mfaCode} 
-                  onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))} 
-                  style={{ ...inputStyle, textAlign: 'center', fontSize: 24, letterSpacing: '0.2em', padding: '16px' }} 
-                  onFocus={e => e.target.style.borderColor = 'var(--accent)'} 
-                  onBlur={e => e.target.style.borderColor = 'var(--border)'} 
+                  placeholder="000 000"
+                  value={mfaCode}
+                  onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))}
+                  style={{ ...inputStyle, textAlign: 'center', fontSize: 24, letterSpacing: '0.2em', padding: '16px' }}
+                  onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
                 />
               </div>
               <button type="submit" disabled={loading || mfaCode.length !== 6} style={{ width: '100%', padding: '13px', borderRadius: 10, fontSize: 15, fontWeight: 600, background: (loading || mfaCode.length !== 6) ? 'var(--surface2)' : 'var(--accent)', color: '#fff', border: 'none', cursor: (loading || mfaCode.length !== 6) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', marginTop: 4 }}>
