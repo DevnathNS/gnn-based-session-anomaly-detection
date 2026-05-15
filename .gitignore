@@ -15,6 +15,13 @@ build/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
+.env.test
+.env.staging
+.env.example
+.env.sample
+*.env
 
 # IDE & Editor
 .vscode/
@@ -93,7 +100,6 @@ Pipfile.lock
 # Temporary files
 tmp/
 temp/
-tests/
 *.bak
 *.tmp
 

@@ -1,0 +1,7 @@
+scenario,type,final_score,expected_range_low,expected_range_high,status_code,result
+1_normal_behavior,benign,91,80,100,200,PASS
+2_session_hijacking,attack,75,0,79,403,PASS
+3_privilege_escalation,attack,0,0,79,403,PASS
+4_api_abuse,attack,0,0,79,429,PASS
+5_score_recovery,benign,97,70,100,200,PASS
+6_insider_threat,attack,0,0,79,403,PASS
