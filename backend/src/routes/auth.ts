@@ -494,6 +494,44 @@ router.post('/webauthn/step-up-verify', authMiddleware, async (req, res) => {
   }
 });
 
+router.post('/totp/step-up-verify', authMiddleware, async (req, res) => {
+  try {
+    const { code } = req.body;
+    const user = (req as any).user;
+    const sessionId = (req as any).sessionId;
+
+    const savedUser = await db.queryOne(
+      'SELECT totp_secret FROM users WHERE id = $1',
+      [user.userId]
+    );
+
+    if (!savedUser || !savedUser.totp_secret) {
+      return res.status(400).json({ error: 'TOTP not configured for this user' });
+    }
+
+    const isValid = verify({ token: code, secret: savedUser.totp_secret });
+
+    if (isValid) {
+      const currentScoreStr = await redisClient.get(`session:${sessionId}:trust_score`);
+      const currentScore = currentScoreStr ? parseInt(currentScoreStr) : 0;
+      
+      const newScore = Math.min(100, currentScore + 30);
+      
+      await redisClient.set(`session:${sessionId}:trust_score`, newScore.toString(), 86400);
+
+      return res.json({ success: true, newScore });
+    } else {
+      console.log(`[SECURITY] TOTP Step-up FAILED for session ${sessionId} — terminating session`);
+      await terminateSession(sessionId);
+      return res.status(403).json({ error: 'Verification failed. Session terminated for security.' });
+    }
+  } catch (error) {
+    console.error('TOTP step-up verify error:', error);
+    const sessionId = (req as any).sessionId;
+    if (sessionId) await terminateSession(sessionId);
+    res.status(500).json({ error: 'Verification process failed. Session terminated.' });
+  }
+});
 router.post('/totp/setup', authMiddleware, async (req, res) => {
 	try {
 		const userId= (req as any).user.userId;
