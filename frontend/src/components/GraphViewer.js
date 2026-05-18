@@ -28,8 +28,8 @@ export default function GraphViewer() {
 				
 				const validNodeIds = new Set(safeNodes.map(n=>n.id));
 				const safeLinks = rawEdges.map(e => ({
-							source: normalize(e.from),
-							target: normalize(e.to),
+							source: e.from,
+							target: e.to,
 							name: `${e.method} (${e.timeDelta}ms)`
 				}))
 				.filter(link => validNodeIds.has(link.source) && validNodeIds.has(link.target));

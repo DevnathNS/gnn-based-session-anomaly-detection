@@ -19,7 +19,7 @@ function StatCard({ label, value, unit, change, color = 'var(--accent)' }) {
     <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <span style={{ fontSize: 13, color: 'var(--text2)', fontWeight: 500 }}>{label}</span>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 32, color: 'var(--text)', letterSpacing: '-0.02em' }}>{value}</span>
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 32, color: color, letterSpacing: '-0.02em' }}>{value}</span>
         {unit && <span style={{ fontSize: 13, color: 'var(--text3)' }}>{unit}</span>}
       </div>
       {change && <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>↑ {change} vs last week</span>}
